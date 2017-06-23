@@ -1,4 +1,4 @@
-package main
+package treeagent
 
 import (
 	"github.com/unixpickle/anydiff"
@@ -88,6 +88,8 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 					for _, x := range data {
 						attrs = append(attrs, float64(x))
 					}
+				default:
+					panic("unsupported numeric type")
 				}
 				dist := r.Policy.Classify(attrs)
 				vec := make([]float64, r.Policy.NumActions)
