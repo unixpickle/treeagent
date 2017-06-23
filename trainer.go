@@ -37,7 +37,11 @@ func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
 	essentials.VoodooSort(rewards, func(i, j int) bool {
 		return rewards[i] > rewards[j]
 	}, indices)
-	numSelect := int(math.Ceil(float64(len(indices)) * t.RolloutFrac))
+	frac := t.RolloutFrac
+	if frac == 0 {
+		frac = 0.5
+	}
+	numSelect := int(math.Ceil(float64(len(indices)) * frac))
 	indices = indices[:numSelect]
 
 	var res idtrees.Forest
