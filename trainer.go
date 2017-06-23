@@ -47,20 +47,9 @@ type Trainer struct {
 
 // Train trains a random forest on the rollouts.
 func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
-	rewards := r.Rewards.Totals()
-	indices := make([]int, len(rewards))
-	for i := range indices {
-		indices[i] = i
-	}
-	essentials.VoodooSort(rewards, func(i, j int) bool {
-		return rewards[i] > rewards[j]
-	}, indices)
-	numSelect := int(math.Ceil(float64(len(indices)) * t.rolloutFrac()))
-	indices = indices[:numSelect]
-
 	var res idtrees.Forest
 	for i := 0; i < t.NumTrees; i++ {
-		tree := t.buildTree(r, indices)
+		tree := t.sampleTree(r)
 		if tree != nil {
 			res = append(res, tree)
 		}
@@ -68,7 +57,10 @@ func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
 	return res
 }
 
-func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
+func (t *Trainer) sampleTree(r *anyrl.RolloutSet) *idtrees.Tree {
+	indices := t.bestRolloutIndices(r)
+
+	// Use a subset of the features to train this tree.
 	features := []idtrees.Attr{}
 	mapping := map[idtrees.Attr]idtrees.Attr{}
 	featurePerm := rand.Perm(t.NumFeatures)[:t.useFeatures()]
@@ -92,9 +84,15 @@ func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
 			if !input.Present[idx] || rand.Float64() > sampleProb {
 				continue
 			}
-			vec := split[idx]
+			inputVec := split[idx]
+			action := anyvec.MaxIndex(splitActions[idx])
+
+			// Only store the features we selected for this
+			// tree to avoid excess memory usage.
+			// This is likely to be necessary on games with
+			// long rollouts.
 			var selected attrMap
-			switch data := vec.Data().(type) {
+			switch data := inputVec.Data().(type) {
 			case []float32:
 				for _, j := range featurePerm {
 					selected = append(selected, float64(data[j]))
@@ -106,7 +104,7 @@ func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
 			default:
 				panic("unsupported numeric type")
 			}
-			action := anyvec.MaxIndex(splitActions[idx])
+
 			samples = append(samples, &sample{
 				base:    selected,
 				mapping: mapping,
@@ -124,6 +122,19 @@ func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
 	} else {
 		return idtrees.ID3(samples, features, 0)
 	}
+}
+
+func (t *Trainer) bestRolloutIndices(r *anyrl.RolloutSet) []int {
+	rewards := r.Rewards.Totals()
+	indices := make([]int, len(rewards))
+	for i := range indices {
+		indices[i] = i
+	}
+	essentials.VoodooSort(rewards, func(i, j int) bool {
+		return rewards[i] > rewards[j]
+	}, indices)
+	numSelect := int(math.Ceil(float64(len(indices)) * t.rolloutFrac()))
+	return indices[:numSelect]
 }
 
 func (t *Trainer) rolloutFrac() float64 {
