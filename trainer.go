@@ -25,6 +25,24 @@ type Trainer struct {
 	//
 	// If 0, a default of 0.5 is used.
 	RolloutFrac float64
+
+	// UseFeatures is the number of features to use for
+	// each tree in the forest.
+	//
+	// If 0, NumFeatures is used.
+	UseFeatures int
+
+	// UseSteps returns the fraction of timesteps to use
+	// as training samples for each tree, given the total
+	// number of timesteps.
+	//
+	// If nil, all timesteps are used as data.
+	UseSteps func(total int) float64
+
+	// BuildTree builds a tree for the dataset.
+	//
+	// If nil, ID3 is used.
+	BuildTree func(samples []idtrees.Sample, attrs []idtrees.Attr) *idtrees.Tree
 }
 
 // Train trains a random forest on the rollouts.
@@ -37,11 +55,7 @@ func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
 	essentials.VoodooSort(rewards, func(i, j int) bool {
 		return rewards[i] > rewards[j]
 	}, indices)
-	frac := t.RolloutFrac
-	if frac == 0 {
-		frac = 0.5
-	}
-	numSelect := int(math.Ceil(float64(len(indices)) * frac))
+	numSelect := int(math.Ceil(float64(len(indices)) * t.rolloutFrac()))
 	indices = indices[:numSelect]
 
 	var res idtrees.Forest
@@ -55,10 +69,9 @@ func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
 }
 
 func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
-	numFeatures := int(math.Ceil(math.Sqrt(float64(t.NumFeatures))))
 	features := []idtrees.Attr{}
 	mapping := map[idtrees.Attr]idtrees.Attr{}
-	featurePerm := rand.Perm(t.NumFeatures)[:numFeatures]
+	featurePerm := rand.Perm(t.NumFeatures)[:t.useFeatures()]
 	for i, j := range featurePerm {
 		mapping[j] = i
 		features = append(features, j)
@@ -68,7 +81,7 @@ func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
 	for _, idx := range indices {
 		totalSamples += len(r.Rewards[idx])
 	}
-	sampleProb := 1 / float64(math.Sqrt(float64(totalSamples)))
+	sampleProb := t.useSteps(totalSamples)
 
 	var samples []idtrees.Sample
 	actions := r.Actions.ReadTape(0, -1)
@@ -106,7 +119,32 @@ func (t *Trainer) buildTree(r *anyrl.RolloutSet, indices []int) *idtrees.Tree {
 		return nil
 	}
 
-	return idtrees.ID3(samples, features, 0)
+	if t.BuildTree != nil {
+		return t.BuildTree(samples, features)
+	} else {
+		return idtrees.ID3(samples, features, 0)
+	}
+}
+
+func (t *Trainer) rolloutFrac() float64 {
+	if t.RolloutFrac == 0 {
+		return 0.5
+	}
+	return t.RolloutFrac
+}
+
+func (t *Trainer) useFeatures() int {
+	if t.UseFeatures == 0 {
+		return t.NumFeatures
+	}
+	return t.UseFeatures
+}
+
+func (t *Trainer) useSteps(total int) float64 {
+	if t.UseSteps != nil {
+		return t.UseSteps(total)
+	}
+	return 1
 }
 
 type sample struct {
@@ -127,7 +165,7 @@ func splitBatch(b *anyseq.Batch) []anyvec.Vector {
 	vec := b.Packed
 	idx := 0
 	res := make([]anyvec.Vector, len(b.Present))
-	subLen := vec.Len() / len(res)
+	subLen := vec.Len() / b.NumPresent()
 	for i, pres := range b.Present {
 		if pres {
 			res[i] = b.Packed.Slice(idx, idx+subLen)
