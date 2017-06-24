@@ -50,14 +50,15 @@ type Policy struct {
 // Classify applies the policy and returns a distribution
 // over the classes.
 func (p *Policy) Classify(sample idtrees.AttrMap) map[idtrees.Class]float64 {
-	res := p.Classifier.Classify(sample)
+	baseClassification := p.Classifier.Classify(sample)
+	res := map[idtrees.Class]float64{}
 
 	// Apply a bit of uniformity to the distribution.
 	softener := p.Epsilon / (1 - p.Epsilon)
 	perBin := softener / float64(p.NumActions)
 	normalizer := 1 / (1 + softener)
 	for i := 0; i < p.NumActions; i++ {
-		res[i] += perBin
+		res[i] = baseClassification[i] + perBin
 		res[i] *= normalizer
 	}
 
