@@ -50,6 +50,14 @@ type Policy struct {
 // Classify applies the policy and returns a distribution
 // over the classes.
 func (p *Policy) Classify(sample idtrees.AttrMap) map[idtrees.Class]float64 {
+	if p.Epsilon == 1 {
+		res := map[idtrees.Class]float64{}
+		for i := 0; i < p.NumActions; i++ {
+			res[i] = 1.0 / float64(p.NumActions)
+		}
+		return res
+	}
+
 	baseClassification := p.Classifier.Classify(sample)
 	res := map[idtrees.Class]float64{}
 
