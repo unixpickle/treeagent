@@ -39,6 +39,11 @@ type Policy struct {
 	// NumActions is the number of discrete actions.
 	NumActions int
 
+	// Greedy, if true, indicates to take the max of
+	// the classifier's output rather than using the
+	// output as a sampling distribution.
+	Greedy bool
+
 	// Epsilon is the probability of taking a random
 	// action rather than an action according to the
 	// policy distribution.
@@ -59,6 +64,11 @@ func (p *Policy) Classify(sample idtrees.AttrMap) map[idtrees.Class]float64 {
 	}
 
 	baseClassification := p.Classifier.Classify(sample)
+	if p.Greedy {
+		c := maxClass(baseClassification)
+		baseClassification = map[idtrees.Class]float64{c: 1}
+	}
+
 	res := map[idtrees.Class]float64{}
 
 	// Apply a bit of uniformity to the distribution.
@@ -71,4 +81,16 @@ func (p *Policy) Classify(sample idtrees.AttrMap) map[idtrees.Class]float64 {
 	}
 
 	return res
+}
+
+func maxClass(m map[idtrees.Class]float64) idtrees.Class {
+	var bestClass idtrees.Class
+	bestProb := -1.0
+	for class, classProb := range m {
+		if classProb >= bestProb {
+			bestProb = classProb
+			bestClass = class
+		}
+	}
+	return bestClass
 }
