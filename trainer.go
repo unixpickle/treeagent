@@ -6,10 +6,15 @@ import (
 
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/weakai/idtrees"
 )
+
+// DefaultCloneFrac is the default fraction of timesteps
+// to clone in the hill-climbing algorithm.
+const DefaultCloneFrac = 0.5
 
 // A Trainer builds trees using a hill-climbing algorithm.
 type Trainer struct {
@@ -19,12 +24,19 @@ type Trainer struct {
 	// NumFeatures is the number of input features.
 	NumFeatures int
 
-	// RolloutFrac is the fraction of rollouts to clone.
+	// CloneFrac is the fraction of timesteps to use as
+	// cloning data.
 	// A value closer to 0 encourages more aggressive
 	// hill-climbing.
 	//
-	// If 0, a default of 0.5 is used.
-	RolloutFrac float64
+	// If 0, a DefaultCloneFrac is used.
+	CloneFrac float64
+
+	// Judger is used to measure the quality of timesteps
+	// for the hill-climbing algorithm.
+	//
+	// If nil, anypg.TotalJudger is used.
+	Judger anypg.ActionJudger
 
 	// UseFeatures is the number of features to use for
 	// each tree in the forest.
@@ -32,11 +44,11 @@ type Trainer struct {
 	// If 0, NumFeatures is used.
 	UseFeatures int
 
-	// UseSteps returns the fraction of timesteps to use
-	// as training samples for each tree, given the total
-	// number of timesteps.
+	// UseSteps returns the fraction of filtered timesteps
+	// to use as training samples for each tree, given the
+	// total number of filtered timesteps.
 	//
-	// If nil, all timesteps are used as data.
+	// If nil, all filtered timesteps are used as data.
 	UseSteps func(total int) float64
 
 	// BuildTree builds a tree for the dataset.
@@ -58,7 +70,7 @@ func (t *Trainer) Train(r *anyrl.RolloutSet) idtrees.Forest {
 }
 
 func (t *Trainer) sampleTree(r *anyrl.RolloutSet) *idtrees.Tree {
-	indices := t.bestRolloutIndices(r)
+	useIndices := t.bestActionIndices(r)
 
 	// Use a subset of the features to train this tree.
 	features := []idtrees.Attr{}
@@ -69,18 +81,21 @@ func (t *Trainer) sampleTree(r *anyrl.RolloutSet) *idtrees.Tree {
 		features = append(features, j)
 	}
 
-	totalSamples := 0
-	for _, idx := range indices {
-		totalSamples += len(r.Rewards[idx])
+	sampleProb := t.useSteps(len(useIndices))
+
+	rolloutsForTimestep := map[int][]int{}
+	for _, index := range useIndices {
+		old := rolloutsForTimestep[index.Timestep]
+		rolloutsForTimestep[index.Timestep] = append(old, index.Rollout)
 	}
-	sampleProb := t.useSteps(totalSamples)
 
 	var samples []idtrees.Sample
 	actions := r.Actions.ReadTape(0, -1)
+	var timestep int
 	for input := range r.Inputs.ReadTape(0, -1) {
 		split := splitBatch(input)
 		splitActions := splitBatch(<-actions)
-		for _, idx := range indices {
+		for _, idx := range rolloutsForTimestep[timestep] {
 			if !input.Present[idx] || rand.Float64() > sampleProb {
 				continue
 			}
@@ -111,6 +126,7 @@ func (t *Trainer) sampleTree(r *anyrl.RolloutSet) *idtrees.Tree {
 				class:   action,
 			})
 		}
+		timestep++
 	}
 
 	if len(samples) == 0 {
@@ -124,24 +140,37 @@ func (t *Trainer) sampleTree(r *anyrl.RolloutSet) *idtrees.Tree {
 	}
 }
 
-func (t *Trainer) bestRolloutIndices(r *anyrl.RolloutSet) []int {
-	rewards := r.Rewards.Totals()
-	indices := make([]int, len(rewards))
-	for i := range indices {
-		indices[i] = i
+func (t *Trainer) bestActionIndices(r *anyrl.RolloutSet) []actionIndex {
+	var indices []actionIndex
+	var values []float64
+	for rolloutIdx, rolloutValues := range t.judger().JudgeActions(r) {
+		for timestep, value := range rolloutValues {
+			indices = append(indices, actionIndex{
+				Rollout:  rolloutIdx,
+				Timestep: timestep,
+			})
+			values = append(values, value)
+		}
 	}
-	essentials.VoodooSort(rewards, func(i, j int) bool {
-		return rewards[i] > rewards[j]
+	essentials.VoodooSort(values, func(i, j int) bool {
+		return values[i] > values[j]
 	}, indices)
-	numSelect := int(math.Ceil(float64(len(indices)) * t.rolloutFrac()))
+	numSelect := int(math.Ceil(float64(len(indices)) * t.cloneFrac()))
 	return indices[:numSelect]
 }
 
-func (t *Trainer) rolloutFrac() float64 {
-	if t.RolloutFrac == 0 {
-		return 0.5
+func (t *Trainer) cloneFrac() float64 {
+	if t.CloneFrac == 0 {
+		return DefaultCloneFrac
 	}
-	return t.RolloutFrac
+	return t.CloneFrac
+}
+
+func (t *Trainer) judger() anypg.ActionJudger {
+	if t.Judger == nil {
+		return &anypg.TotalJudger{}
+	}
+	return t.Judger
 }
 
 func (t *Trainer) useFeatures() int {
@@ -170,6 +199,11 @@ func (s *sample) Attr(k idtrees.Attr) idtrees.Val {
 
 func (s *sample) Class() idtrees.Class {
 	return s.class
+}
+
+type actionIndex struct {
+	Rollout  int
+	Timestep int
 }
 
 func splitBatch(b *anyseq.Batch) []anyvec.Vector {
