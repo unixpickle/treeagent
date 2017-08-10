@@ -32,8 +32,7 @@ func RolloutSamples(r *anyrl.RolloutSet) <-chan Sample {
 		defer close(res)
 		inChan := r.Inputs.ReadTape(0, -1)
 		outChan := r.AgentOuts.ReadTape(0, -1)
-		for {
-			input := <-inChan
+		for input := range inChan {
 			output := <-outChan
 			inValues := vecToFloats(input.Packed)
 			outValues := vecToFloats(output.Packed)
@@ -86,6 +85,16 @@ func Uint8Samples(numFeatures int, incoming <-chan Sample) <-chan Sample {
 			res <- sample
 		}
 	}()
+	return res
+}
+
+// AllSamples reads the samples from the channel and
+// stores them in a slice.
+func AllSamples(ch <-chan Sample) []Sample {
+	var res []Sample
+	for s := range ch {
+		res = append(res, s)
+	}
 	return res
 }
 

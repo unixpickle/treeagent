@@ -53,8 +53,12 @@ func (t *Trainer) Targets(r *anyrl.RolloutSet, samples <-chan Sample) <-chan Sam
 			// Perform policy gradients on the action distribution,
 			// treating it as a parameter vector for softmax.
 
-			paramVec := anydiff.NewVar(c.MakeVectorData(sample.ActionDist))
-			logProbs := anydiff.LogSoftmax(paramVec, -1)
+			paramVec := anydiff.NewVar(
+				c.MakeVectorData(
+					c.MakeNumericList(sample.ActionDist()),
+				),
+			)
+			logProbs := anydiff.LogSoftmax(paramVec, 0)
 			logProb := anydiff.Slice(logProbs, action, action+1)
 			objective := anydiff.Scale(logProb, advantage)
 
@@ -88,9 +92,16 @@ func (t *Trainer) judger() anypg.ActionJudger {
 
 func flattenAdvantages(r anyrl.Rewards) []float64 {
 	var res []float64
-	for _, batch := range r {
-		for _, x := range batch {
-			res = append(res, x)
+	for t := 0; true; t++ {
+		var hasStep bool
+		for _, seq := range r {
+			if len(seq) > t {
+				hasStep = true
+				res = append(res, seq[t])
+			}
+		}
+		if !hasStep {
+			break
 		}
 	}
 	return res
@@ -103,7 +114,7 @@ func selectedActions(r *anyrl.RolloutSet) <-chan int {
 		for timestep := range r.Actions.ReadTape(0, -1) {
 			oneHots := timestep.Packed
 			numActions := oneHots.Len() / timestep.NumPresent()
-			for i := 0; i < numActions; i++ {
+			for i := 0; i < timestep.NumPresent(); i++ {
 				oneHot := oneHots.Slice(i*numActions, (i+1)*numActions)
 				res <- anyvec.MaxIndex(oneHot)
 			}

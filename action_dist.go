@@ -7,6 +7,15 @@ import "math"
 // action's log probability.
 type ActionDist []float64
 
+// NewActionDist creates a uniform distribution.
+func NewActionDist(numActions int) ActionDist {
+	res := make(ActionDist, numActions)
+	for i := range res {
+		res[i] = math.Log(1.0 / float64(numActions))
+	}
+	return res
+}
+
 func zeroActionDist(length int) ActionDist {
 	res := make(ActionDist, length)
 	for i := range res {
