@@ -43,13 +43,16 @@ func main() {
 }
 
 func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
-	trainer := &treeagent.Trainer{
-		StepSize:     math.Exp(rand.Float64()*5 - 4),
-		EntropyReg:   math.Exp(rand.Float64()*5 - 4),
-		TrainingMode: treeagent.LinearUpdate,
-	}
+	stepSize := math.Exp(rand.Float64()*5 - 4)
+	entropyReg := math.Exp(rand.Float64()*5 - 4)
 	stepDecay := 1 - rand.Float64()*0.1
 	depth := rand.Intn(8)
+
+	trainer := &treeagent.Trainer{
+		StepSize:     stepSize,
+		EntropyReg:   entropyReg,
+		TrainingMode: treeagent.LinearUpdate,
+	}
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
@@ -82,8 +85,7 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, depth)
 	}
 
-	fmt.Printf("%f,%f,%d,%f,%f\n", trainer.StepSize, trainer.EntropyReg, depth,
-		stepDecay, lastMean)
+	fmt.Printf("%f,%f,%d,%f,%f\n", stepSize, entropyReg, depth, stepDecay, lastMean)
 }
 
 func must(err error) {
