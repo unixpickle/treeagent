@@ -3,9 +3,13 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"math"
+	"math/rand"
+	"runtime"
 
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 	"github.com/unixpickle/treeagent"
@@ -14,30 +18,38 @@ import (
 const (
 	Host             = "localhost:5001"
 	RolloutsPerBatch = 100
-	NumBatches       = 200
-
-	Depth = 6
+	NumBatches       = 30
 )
 
 func main() {
-	// Used to create vectors.
+	fmt.Println("step_size,entropy_reg,depth,step_decay,reward")
+
 	creator := anyvec32.CurrentCreator()
 
-	// Connect to gym server.
-	client, err := gym.Make(Host, "CartPole-v0")
-	must(err)
-	defer client.Close()
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+		client, err := gym.Make(Host, "CartPole-v0")
+		must(err)
+		defer client.Close()
 
-	// Create an anyrl.Env from our gym environment.
-	env, err := anyrl.GymEnv(creator, client, false)
-	must(err)
+		env, err := anyrl.GymEnv(creator, client, false)
+		must(err)
+		go func() {
+			for {
+				randomTrainingRound(creator, env)
+			}
+		}()
+	}
+	select {}
+}
 
-	// Setup a trainer.
+func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 	trainer := &treeagent.Trainer{
-		StepSize:     0.2,
-		EntropyReg:   0.1,
+		StepSize:     math.Exp(rand.Float64()*5 - 4),
+		EntropyReg:   math.Exp(rand.Float64()*5 - 4),
 		TrainingMode: treeagent.LinearUpdate,
 	}
+	stepDecay := 1 - rand.Float64()*0.1
+	depth := rand.Intn(8)
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
@@ -46,7 +58,10 @@ func main() {
 		NumActions: 2,
 	}
 
+	var lastMean float64
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
+		trainer.StepSize *= stepDecay
+
 		// Gather episode rollouts.
 		var rollouts []*anyrl.RolloutSet
 		for i := 0; i < RolloutsPerBatch; i++ {
@@ -59,13 +74,16 @@ func main() {
 		r := anyrl.PackRolloutSets(rollouts)
 
 		// Print the rewards.
-		log.Printf("batch %d: mean_reward=%f", batchIdx, r.Rewards.Mean())
+		lastMean = r.Rewards.Mean()
 
 		// Train on the rollouts.
 		samples := treeagent.RolloutSamples(r)
 		targets := trainer.Targets(r, samples)
-		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, Depth)
+		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, depth)
 	}
+
+	fmt.Printf("%f,%f,%d,%f,%f\n", trainer.StepSize, trainer.EntropyReg, depth,
+		stepDecay, lastMean)
 }
 
 func must(err error) {
