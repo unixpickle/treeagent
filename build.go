@@ -7,15 +7,6 @@ import (
 	"github.com/unixpickle/essentials"
 )
 
-// Sample is a training sample for building a tree.
-//
-// Each sample stores the observation features for a
-// single timestep, as well as an action distribution.
-type Sample interface {
-	Feature(idx int) float64
-	ActionDist() ActionDist
-}
-
 // BuildTree builds a tree which tries to match the action
 // distributions of the samples.
 func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
