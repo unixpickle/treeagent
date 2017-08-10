@@ -1,10 +1,6 @@
 package treeagent
 
-import (
-	"math"
-
-	"github.com/unixpickle/anyrl"
-)
+import "github.com/unixpickle/anyrl"
 
 // Sample is a training sample for building a tree.
 //
@@ -48,11 +44,9 @@ func RolloutSamples(r *anyrl.RolloutSet) <-chan Sample {
 			for i := 0; i < batch; i++ {
 				subIns := inValues[i*numFeatures : (i+1)*numFeatures]
 				subOuts := outValues[i*numActions : (i+1)*numActions]
-				actionDist := ActionDist{}
+				actionDist := make(ActionDist, numActions)
 				for action, logProb := range subOuts {
-					if !math.IsInf(logProb, -1) {
-						actionDist[Action(action)] = math.Exp(logProb)
-					}
+					actionDist[action] = logProb
 				}
 				res <- &memorySample{
 					Features: subIns,

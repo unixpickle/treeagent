@@ -1,8 +1,6 @@
 package treeagent
 
 import (
-	"math"
-
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anynet/anyrnn"
 	"github.com/unixpickle/anyrl"
@@ -53,9 +51,7 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 				for i := 0; i < batch; i++ {
 					subFeatures := features[i*numFeatures : (i+1)*numFeatures]
 					classDist := r.Policy.Find(subFeatures)
-					for j := 0; j < r.NumActions; j++ {
-						outProbs = append(outProbs, math.Log(classDist[Action(j)]))
-					}
+					outProbs = append(outProbs, classDist...)
 				}
 
 				vecData := r.Creator.MakeNumericList(outProbs)

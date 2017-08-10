@@ -9,27 +9,27 @@ func TestBuildTreeSplit(t *testing.T) {
 	samples := []*testingSample{
 		{
 			Features: []float64{3, 0.5},
-			Dist:     map[Action]float64{0: 0.7, 1: 0.3},
+			Dist:     ActionDist([]float64{math.Log(0.7), math.Log(0.3)}),
 		},
 		{
 			Features: []float64{3, 2},
-			Dist:     map[Action]float64{0: 0.5, 1: 0.5},
+			Dist:     ActionDist([]float64{math.Log(0.5), math.Log(0.5)}),
 		},
 		{
 			Features: []float64{3, 1.5},
-			Dist:     map[Action]float64{0: 0.7, 1: 0.3},
+			Dist:     ActionDist([]float64{math.Log(0.7), math.Log(0.3)}),
 		},
 		{
 			Features: []float64{3, 2.5},
-			Dist:     map[Action]float64{0: 0.5, 1: 0.5},
+			Dist:     ActionDist([]float64{math.Log(0.5), math.Log(0.5)}),
 		},
 		{
 			Features: []float64{3, 1},
-			Dist:     map[Action]float64{0: 0.7, 1: 0.3},
+			Dist:     ActionDist([]float64{math.Log(0.7), math.Log(0.3)}),
 		},
 		{
 			Features: []float64{3, 2.5},
-			Dist:     map[Action]float64{0: 0.5, 1: 0.5},
+			Dist:     ActionDist([]float64{math.Log(0.5), math.Log(0.5)}),
 		},
 	}
 	tree := buildTestTree(samples, 2, 1)

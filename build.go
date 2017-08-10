@@ -10,9 +10,11 @@ import (
 // BuildTree builds a tree which tries to match the action
 // distributions of the samples.
 func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
-	if maxDepth == 0 || len(data) < 2 {
+	if len(data) == 0 {
+		panic("cannot build tree with no data")
+	} else if maxDepth == 0 || len(data) == 1 {
 		return &Tree{
-			Distribution: addActionDists(sampleDists(data)...).normalize(),
+			Distribution: addActionDists(sampleDists(data)).normalize(),
 		}
 	}
 
@@ -61,12 +63,19 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 // optimalSplit finds the optimal split for the given
 // feature and set of samples.
 // It returns nil if no split is effective.
+//
+// There must be at least one sample.
 func optimalSplit(samples []Sample, feature int) *splitInfo {
 	sorted, featureVals := sortByFeature(samples, feature)
 	dists := sampleDists(sorted)
 
-	totalDist := addActionDists(dists...)
-	leftDist := ActionDist{}
+	rightSums := make([]ActionDist, len(samples))
+	rightSum := zeroActionDist(len(samples[0].ActionDist()))
+	for i := len(samples) - 1; i >= 0; i-- {
+		rightSum = rightSum.add(dists[i])
+		rightSums[i] = rightSum
+	}
+	leftSum := zeroActionDist(len(rightSum))
 	lastValue := featureVals[0]
 
 	var bestSplit *splitInfo
@@ -74,7 +83,7 @@ func optimalSplit(samples []Sample, feature int) *splitInfo {
 		if featureVals[i] > lastValue {
 			newSplit := &splitInfo{
 				Feature:      feature,
-				Loss:         lossFromSums(leftDist, totalDist),
+				Loss:         lossFromSums(leftSum, rightSums[i]),
 				Threshold:    (featureVals[i] + lastValue) / 2,
 				LeftSamples:  sorted[:i],
 				RightSamples: sorted[i:],
@@ -82,7 +91,7 @@ func optimalSplit(samples []Sample, feature int) *splitInfo {
 			bestSplit = betterSplit(bestSplit, newSplit)
 			lastValue = featureVals[i]
 		}
-		leftDist = addActionDists(leftDist, dist)
+		leftSum = leftSum.add(dist)
 	}
 
 	return bestSplit
@@ -103,12 +112,12 @@ func sortByFeature(samples []Sample, feature int) ([]Sample, []float64) {
 	return sorted, vals
 }
 
-func lossFromSums(leftSum, totalSum ActionDist) float64 {
-	return lossFromDistSum(leftSum) + lossFromDistSum(totalSum.sub(leftSum))
+func lossFromSums(leftSum, rightSum ActionDist) float64 {
+	return lossFromDistSum(leftSum) + lossFromDistSum(rightSum)
 }
 
 func lossFromDistSum(sum ActionDist) float64 {
-	return -sum.normalize().log().dot(sum)
+	return -sum.normalize().dot(sum.exp())
 }
 
 func sampleDists(samples []Sample) []ActionDist {
