@@ -14,9 +14,9 @@ import (
 const (
 	Host             = "localhost:5001"
 	RolloutsPerBatch = 100
-	NumBatches       = 100
+	NumBatches       = 200
 
-	Depth = 3
+	Depth = 6
 )
 
 func main() {
@@ -34,8 +34,9 @@ func main() {
 
 	// Setup a trainer.
 	trainer := &treeagent.Trainer{
-		StepSize:   0.5,
-		EntropyReg: 0.1,
+		StepSize:     0.2,
+		EntropyReg:   0.1,
+		TrainingMode: treeagent.LinearUpdate,
 	}
 
 	// Setup a roller with a uniformly random policy.

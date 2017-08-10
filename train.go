@@ -8,6 +8,18 @@ import (
 	"github.com/unixpickle/anyvec/anyvec64"
 )
 
+// TrainingMode is a way of changing action distributions
+// given advantage functions.
+//
+// The default is PolicyGradient, which is the most
+// theoretically justified training mode thus far.
+type TrainingMode int
+
+const (
+	PolicyGradient TrainingMode = iota
+	LinearUpdate
+)
+
 // A Trainer uses a simplified form of policy gradients to
 // update the action distributions for training samples.
 // In other words, a Trainer pulls action distributions
@@ -28,6 +40,10 @@ type Trainer struct {
 	//
 	// If nil, anypg.TotalJudger is used.
 	Judger anypg.ActionJudger
+
+	// TrainingMode determines how distributions are
+	// updated.
+	TrainingMode TrainingMode
 }
 
 // Targets derives a stream of Samples with updated action
@@ -58,9 +74,16 @@ func (t *Trainer) Targets(r *anyrl.RolloutSet, samples <-chan Sample) <-chan Sam
 					c.MakeNumericList(sample.ActionDist()),
 				),
 			)
-			logProbs := anydiff.LogSoftmax(paramVec, 0)
-			logProb := anydiff.Slice(logProbs, action, action+1)
-			objective := anydiff.Scale(logProb, advantage)
+
+			var objective anydiff.Res
+			if t.TrainingMode == PolicyGradient {
+				logProbs := anydiff.LogSoftmax(paramVec, 0)
+				logProb := anydiff.Slice(logProbs, action, action+1)
+				objective = anydiff.Scale(logProb, advantage)
+			} else {
+				component := anydiff.Slice(paramVec, action, action+1)
+				objective = anydiff.Scale(component, advantage)
+			}
 
 			if t.EntropyReg != 0 {
 				space := anyrl.Softmax{}
