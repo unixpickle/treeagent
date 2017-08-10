@@ -2,9 +2,8 @@ package treeagent
 
 import "math"
 
-// Action is a discrete action in an environment.
-// Actions must be comparable with the == operator.
-type Action interface{}
+// Action is a discrete action in an RL environment.
+type Action int
 
 // ActionDist is a probability distribution over actions.
 type ActionDist map[Action]float64
