@@ -80,6 +80,7 @@ func RolloutSamples(r *anyrl.RolloutSet) <-chan Sample {
 func Uint8Samples(numFeatures int, incoming <-chan Sample) <-chan Sample {
 	res := make(chan Sample, 1)
 	go func() {
+		defer close(res)
 		for in := range incoming {
 			sample := &uint8Sample{
 				Features: make([]uint8, numFeatures),
