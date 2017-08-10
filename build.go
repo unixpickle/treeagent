@@ -72,7 +72,7 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 // It returns nil if no split is effective.
 func optimalSplit(samples []Sample, feature int) *splitInfo {
 	sorted, featureVals := sortByFeature(samples, feature)
-	dists := sampleDists(samples)
+	dists := sampleDists(sorted)
 
 	totalDist := addActionDists(dists...)
 	leftDist := ActionDist{}
