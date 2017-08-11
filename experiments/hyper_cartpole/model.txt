@@ -1,0 +1,4 @@
+Input(w=4, h=1, d=1)
+FC(out=10)
+Tanh
+FC(out=1)
