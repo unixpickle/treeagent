@@ -1,13 +1,11 @@
+// Trains a decision tree on CartPole-v0 in OpenAI Gym.
+
 package main
 
 import (
-	"fmt"
-	"math"
-	"math/rand"
-	"runtime"
+	"log"
 
 	"github.com/unixpickle/anyrl"
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 	"github.com/unixpickle/treeagent"
@@ -16,39 +14,27 @@ import (
 const (
 	Host             = "localhost:5001"
 	RolloutsPerBatch = 100
-	NumBatches       = 30
+	NumBatches       = 100
+
+	Depth = 3
 )
 
 func main() {
-	fmt.Println("step_size,entropy_reg,depth,step_decay,reward")
-
+	// Used to create vectors.
 	creator := anyvec32.CurrentCreator()
 
-	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-		client, err := gym.Make(Host, "CartPole-v0")
-		must(err)
-		defer client.Close()
+	// Connect to gym server.
+	client, err := gym.Make(Host, "CartPole-v0")
+	must(err)
+	defer client.Close()
 
-		env, err := anyrl.GymEnv(creator, client, false)
-		must(err)
-		go func() {
-			for {
-				randomTrainingRound(creator, env)
-			}
-		}()
-	}
-	select {}
-}
+	// Create an anyrl.Env from our gym environment.
+	env, err := anyrl.GymEnv(creator, client, false)
+	must(err)
 
-func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
-	stepSize := math.Exp(rand.Float64()*5 - 4)
-	entropyReg := math.Exp(rand.Float64()*5 - 4)
-	stepDecay := 1 - rand.Float64()*0.1
-	depth := rand.Intn(8)
-
+	// Setup a trainer.
 	trainer := &treeagent.Trainer{
-		StepSize:     stepSize,
-		EntropyReg:   entropyReg,
+		StepSize:     0.8,
 		TrainingMode: treeagent.LinearUpdate,
 	}
 
@@ -59,10 +45,7 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		NumActions: 2,
 	}
 
-	var lastMean float64
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
-		trainer.StepSize *= stepDecay
-
 		// Gather episode rollouts.
 		var rollouts []*anyrl.RolloutSet
 		for i := 0; i < RolloutsPerBatch; i++ {
@@ -75,15 +58,13 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		r := anyrl.PackRolloutSets(rollouts)
 
 		// Print the rewards.
-		lastMean = r.Rewards.Mean()
+		log.Printf("batch %d: mean_reward=%f", batchIdx, r.Rewards.Mean())
 
 		// Train on the rollouts.
 		samples := treeagent.RolloutSamples(r)
 		targets := trainer.Targets(r, samples)
-		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, depth)
+		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, Depth)
 	}
-
-	fmt.Printf("%f,%f,%d,%f,%f\n", stepSize, entropyReg, depth, stepDecay, lastMean)
 }
 
 func must(err error) {
