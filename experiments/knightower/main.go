@@ -3,9 +3,8 @@
 package main
 
 import (
-	"bytes"
 	"compress/flate"
-	"encoding/gob"
+	"encoding/json"
 	"io/ioutil"
 	"log"
 	"math"
@@ -28,7 +27,7 @@ const (
 )
 
 const (
-	SaveFile = "trained_policy"
+	SaveFile = "policy.json"
 )
 
 func main() {
@@ -82,10 +81,9 @@ func main() {
 
 			// Save the new policy.
 			trainLock.Lock()
-			var data bytes.Buffer
-			enc := gob.NewEncoder(&data)
-			must(enc.Encode(policy))
-			must(ioutil.WriteFile(SaveFile, data.Bytes(), 0755))
+			data, err := json.Marshal(policy)
+			must(err)
+			must(ioutil.WriteFile(SaveFile, data, 0755))
 			trainLock.Unlock()
 		}
 	}()
@@ -164,8 +162,7 @@ func loadOrCreatePolicy() *treeagent.Tree {
 		return &treeagent.Tree{Distribution: treeagent.NewActionDist(2)}
 	}
 	var res *treeagent.Tree
-	dec := gob.NewDecoder(bytes.NewReader(data))
-	must(dec.Decode(&res))
+	must(json.Unmarshal(data, &res))
 	log.Println("Loaded policy from file.")
 	return res
 }
