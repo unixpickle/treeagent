@@ -136,7 +136,7 @@ func gatherRollouts(flags *Flags, roller *treeagent.Roller) []*anyrl.RolloutSet 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			spec := muniverse.SpecForName("Knightower-v0")
+			spec := muniverse.SpecForName(flags.Env)
 			if spec == nil {
 				panic("environment not found")
 			}
@@ -182,11 +182,12 @@ func gatherRollouts(flags *Flags, roller *treeagent.Roller) []*anyrl.RolloutSet 
 	return res
 }
 
-func loadOrCreatePolicy(path string) *treeagent.Tree {
-	data, err := ioutil.ReadFile(path)
+func loadOrCreatePolicy(flags *Flags) *treeagent.Tree {
+	data, err := ioutil.ReadFile(flags.SaveFile)
 	if err != nil {
 		log.Println("Created new policy.")
-		return &treeagent.Tree{Distribution: treeagent.NewActionDist(2)}
+		n := 1 + len(muniverse.SpecForName(flags.Env).KeyWhitelist)
+		return &treeagent.Tree{Distribution: treeagent.NewActionDist(n)}
 	}
 	var res *treeagent.Tree
 	must(json.Unmarshal(data, &res))
