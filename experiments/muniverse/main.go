@@ -30,6 +30,7 @@ type Flags struct {
 	StepSize     float64
 	SaveFile     string
 	Env          string
+	RecordDir    string
 	FrameTime    time.Duration
 }
 
@@ -43,6 +44,7 @@ func main() {
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
+	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
 	flag.DurationVar(&flags.FrameTime, "frametime", time.Second/8, "time per frame")
 	flag.Parse()
 
@@ -141,11 +143,12 @@ func gatherRollouts(flags *Flags, roller *treeagent.Roller) []*anyrl.RolloutSet 
 				panic("environment not found")
 			}
 			env, err := muniverse.NewEnv(spec)
-
-			// Used to debug on my end.
-			//env, err := muniverse.NewEnvChrome("localhost:9222", "localhost:8080", spec)
-
 			must(err)
+
+			if flags.RecordDir != "" {
+				env = muniverse.RecordEnv(env, flags.RecordDir)
+			}
+
 			defer env.Close()
 
 			preproc := &Env{
