@@ -188,5 +188,5 @@ func (r *rewardAverages) ActionMean(action int) float64 {
 }
 
 func (r *rewardAverages) GreedyAdvantage() float64 {
-	return float64(r.Count) * r.ActionMean(r.BestAction())
+	return r.ActionTotals[r.BestAction()]
 }
