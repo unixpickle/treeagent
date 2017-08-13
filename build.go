@@ -78,7 +78,7 @@ func optimalSplit(samples []Sample, feature int) *splitInfo {
 	lastValue := featureVals[0]
 
 	var bestSplit *splitInfo
-	for i, sample := range samples {
+	for i, sample := range sorted {
 		if featureVals[i] > lastValue {
 			newSplit := &splitInfo{
 				Feature:      feature,
