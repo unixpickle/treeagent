@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"runtime"
 
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
@@ -20,7 +20,7 @@ const (
 )
 
 func main() {
-	fmt.Println("step_size,entropy_reg,depth,step_decay,reward")
+	fmt.Println("depth,step_size,truncation,reward")
 
 	creator := anyvec32.CurrentCreator()
 
@@ -41,27 +41,18 @@ func main() {
 }
 
 func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
-	stepSize := math.Exp(rand.Float64()*5 - 4)
-	entropyReg := math.Exp(rand.Float64()*5 - 4)
-	stepDecay := 1 - rand.Float64()*0.1
 	depth := rand.Intn(8)
-
-	trainer := &treeagent.Trainer{
-		StepSize:     stepSize,
-		EntropyReg:   entropyReg,
-		TrainingMode: treeagent.LinearUpdate,
-	}
+	stepSize := rand.Float64()
+	truncation := rand.Intn(30) + 1
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
-		Policy:  &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
+		Policy:  treeagent.NewForest(stepSize, 2),
 		Creator: creator,
 	}
 
 	var lastMean float64
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
-		trainer.StepSize *= stepDecay
-
 		// Gather episode rollouts.
 		var rollouts []*anyrl.RolloutSet
 		for i := 0; i < RolloutsPerBatch; i++ {
@@ -77,12 +68,14 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		lastMean = r.Rewards.Mean()
 
 		// Train on the rollouts.
-		samples := treeagent.RolloutSamples(r)
-		targets := trainer.Targets(r, samples)
-		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, depth)
+		judger := anypg.TotalJudger{Normalize: true}
+		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
+		tree := treeagent.BuildTree(treeagent.AllSamples(samples), 4, depth)
+		roller.Policy.Add(tree)
+		roller.Policy.Truncate(truncation)
 	}
 
-	fmt.Printf("%f,%f,%d,%f,%f\n", stepSize, entropyReg, depth, stepDecay, lastMean)
+	fmt.Printf("%d,%f,%d,%f\n", depth, stepSize, truncation, lastMean)
 }
 
 func must(err error) {

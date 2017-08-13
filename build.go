@@ -1,6 +1,7 @@
 package treeagent
 
 import (
+	"math"
 	"runtime"
 	"sync"
 
@@ -14,7 +15,8 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 		panic("cannot build tree with no data")
 	} else if maxDepth == 0 || len(data) == 1 {
 		return &Tree{
-			Distribution: addActionDists(sampleDists(data)).normalize(),
+			Leaf:   true,
+			Action: bestAction(data),
 		}
 	}
 
@@ -67,23 +69,20 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 // There must be at least one sample.
 func optimalSplit(samples []Sample, feature int) *splitInfo {
 	sorted, featureVals := sortByFeature(samples, feature)
-	dists := sampleDists(sorted)
 
-	rightSums := make([]ActionDist, len(samples))
-	rightSum := zeroActionDist(len(samples[0].ActionDist()))
-	for i := len(samples) - 1; i >= 0; i-- {
-		rightSum = rightSum.add(dists[i])
-		rightSums[i] = rightSum
+	rightSum := newRewardAverages()
+	leftSum := newRewardAverages()
+	for _, sample := range samples {
+		rightSum.Add(sample)
 	}
-	leftSum := zeroActionDist(len(rightSum))
 	lastValue := featureVals[0]
 
 	var bestSplit *splitInfo
-	for i, dist := range dists {
+	for i, sample := range samples {
 		if featureVals[i] > lastValue {
 			newSplit := &splitInfo{
 				Feature:      feature,
-				Loss:         lossFromSums(leftSum, rightSums[i]),
+				Advantage:    advantageForSplit(leftSum, rightSum),
 				Threshold:    (featureVals[i] + lastValue) / 2,
 				LeftSamples:  sorted[:i],
 				RightSamples: sorted[i:],
@@ -91,7 +90,8 @@ func optimalSplit(samples []Sample, feature int) *splitInfo {
 			bestSplit = betterSplit(bestSplit, newSplit)
 			lastValue = featureVals[i]
 		}
-		leftSum = leftSum.add(dist)
+		leftSum.Add(sample)
+		rightSum.Remove(sample)
 	}
 
 	return bestSplit
@@ -112,29 +112,17 @@ func sortByFeature(samples []Sample, feature int) ([]Sample, []float64) {
 	return sorted, vals
 }
 
-func lossFromSums(leftSum, rightSum ActionDist) float64 {
-	return lossFromDistSum(leftSum) + lossFromDistSum(rightSum)
-}
-
-func lossFromDistSum(sum ActionDist) float64 {
-	return -sum.normalize().dot(sum.exp())
-}
-
-func sampleDists(samples []Sample) []ActionDist {
-	res := make([]ActionDist, len(samples))
-	for i, x := range samples {
-		res[i] = x.ActionDist()
-	}
-	return res
-}
-
 type splitInfo struct {
 	Feature   int
 	Threshold float64
-	Loss      float64
+	Advantage float64
 
 	LeftSamples  []Sample
 	RightSamples []Sample
+}
+
+func advantageForSplit(left, right *rewardAverages) float64 {
+	return left.GreedyAdvantage() + right.GreedyAdvantage()
 }
 
 func betterSplit(s1, s2 *splitInfo) *splitInfo {
@@ -142,9 +130,63 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 		return s2
 	} else if s2 == nil {
 		return s1
-	} else if s1.Loss < s2.Loss {
+	} else if s1.Advantage > s2.Advantage {
 		return s1
 	} else {
 		return s2
 	}
+}
+
+func bestAction(data []Sample) int {
+	avg := newRewardAverages()
+	for _, sample := range data {
+		avg.Add(sample)
+	}
+	return avg.BestAction()
+}
+
+type rewardAverages struct {
+	ActionTotals map[int]float64
+	ActionCounts map[int]int
+	Count        int
+}
+
+func newRewardAverages() *rewardAverages {
+	return &rewardAverages{
+		ActionTotals: map[int]float64{},
+		ActionCounts: map[int]int{},
+	}
+}
+
+func (r *rewardAverages) Add(sample Sample) {
+	r.ActionTotals[sample.Action()] += sample.Advantage()
+	r.ActionCounts[sample.Action()]++
+	r.Count++
+}
+
+func (r *rewardAverages) Remove(sample Sample) {
+	r.ActionTotals[sample.Action()] -= sample.Advantage()
+	r.ActionCounts[sample.Action()]--
+	r.Count--
+}
+
+func (r *rewardAverages) BestAction() int {
+	var bestAction int
+	bestAdvantage := math.Inf(-1)
+	for action, total := range r.ActionTotals {
+		mean := total / float64(r.ActionCounts[action])
+		if mean >= bestAdvantage {
+			bestAdvantage = mean
+			bestAction = action
+		}
+	}
+	return bestAction
+}
+
+func (r *rewardAverages) ActionMean(action int) float64 {
+	return r.ActionTotals[action] / float64(r.ActionCounts[action])
+}
+
+func (r *rewardAverages) GreedyAdvantage() float64 {
+	return float64(r.Count) * r.ActionMean(r.BestAction())
 }

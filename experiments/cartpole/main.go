@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 	"github.com/unixpickle/treeagent"
@@ -16,7 +17,7 @@ const (
 	RolloutsPerBatch = 100
 	NumBatches       = 100
 
-	Depth = 3
+	Depth = 7
 )
 
 func main() {
@@ -32,15 +33,9 @@ func main() {
 	env, err := anyrl.GymEnv(creator, client, false)
 	must(err)
 
-	// Setup a trainer.
-	trainer := &treeagent.Trainer{
-		StepSize:     0.8,
-		TrainingMode: treeagent.LinearUpdate,
-	}
-
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
-		Policy:  &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
+		Policy:  treeagent.NewForest(0.1, 2),
 		Creator: creator,
 	}
 
@@ -60,9 +55,10 @@ func main() {
 		log.Printf("batch %d: mean_reward=%f", batchIdx, r.Rewards.Mean())
 
 		// Train on the rollouts.
-		samples := treeagent.RolloutSamples(r)
-		targets := trainer.Targets(r, samples)
-		roller.Policy = treeagent.BuildTree(treeagent.AllSamples(targets), 4, Depth)
+		judger := anypg.TotalJudger{Normalize: true}
+		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
+		tree := treeagent.BuildTree(treeagent.AllSamples(samples), 4, Depth)
+		roller.Policy.Add(tree)
 	}
 }
 

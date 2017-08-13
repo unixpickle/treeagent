@@ -14,6 +14,7 @@ import (
 
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/lazyseq"
@@ -28,6 +29,7 @@ type Flags struct {
 	LogInterval  int
 	Depth        int
 	StepSize     float64
+	Truncation   int
 	SaveFile     string
 	Env          string
 	RecordDir    string
@@ -42,6 +44,7 @@ func main() {
 	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
+	flag.IntVar(&flags.Truncation, "truncation", 20, "trees in forest")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
 	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
@@ -61,12 +64,9 @@ func main() {
 	// Setup vector creator.
 	creator := anyvec32.CurrentCreator()
 
-	// Create a decision tree policy.
-	policy := loadOrCreatePolicy(flags)
-
 	// Setup a Roller for producing rollouts.
 	roller := &treeagent.Roller{
-		Policy:  policy,
+		Policy:  loadOrCreatePolicy(flags),
 		Creator: creator,
 
 		// Compress the input frames as we store them.
@@ -75,12 +75,6 @@ func main() {
 		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
 			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
 		},
-	}
-
-	// Setup a trainer for producing new policies.
-	trainer := &treeagent.Trainer{
-		StepSize:     flags.StepSize,
-		TrainingMode: treeagent.LinearUpdate,
 	}
 
 	// Train on a background goroutine so that we can
@@ -101,15 +95,17 @@ func main() {
 			// Train on the rollouts.
 			log.Println("Training on batch...")
 			numFeatures := NumFeatures(spec)
-			samples := treeagent.Uint8Samples(numFeatures, treeagent.RolloutSamples(r))
-			targets := trainer.Targets(r, samples)
-			policy = treeagent.BuildTree(treeagent.AllSamples(targets), numFeatures,
-				flags.Depth)
-			roller.Policy = policy
+			judger := anypg.TotalJudger{}
+			advantages := judger.JudgeActions(r)
+			rawSamples := treeagent.RolloutSamples(r, advantages)
+			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
+			roller.Policy.Add(treeagent.BuildTree(treeagent.AllSamples(samples),
+				numFeatures, flags.Depth))
+			roller.Policy.Truncate(flags.Truncation)
 
 			// Save the new policy.
 			trainLock.Lock()
-			data, err := json.Marshal(policy)
+			data, err := json.Marshal(roller.Policy)
 			must(err)
 			must(ioutil.WriteFile(flags.SaveFile, data, 0755))
 			trainLock.Unlock()
@@ -185,14 +181,14 @@ func gatherRollouts(flags *Flags, roller *treeagent.Roller) []*anyrl.RolloutSet 
 	return res
 }
 
-func loadOrCreatePolicy(flags *Flags) *treeagent.Tree {
+func loadOrCreatePolicy(flags *Flags) *treeagent.Forest {
 	data, err := ioutil.ReadFile(flags.SaveFile)
 	if err != nil {
 		log.Println("Created new policy.")
 		n := 1 + len(muniverse.SpecForName(flags.Env).KeyWhitelist)
-		return &treeagent.Tree{Distribution: treeagent.NewActionDist(n)}
+		return treeagent.NewForest(flags.StepSize, n)
 	}
-	var res *treeagent.Tree
+	var res *treeagent.Forest
 	must(json.Unmarshal(data, &res))
 	log.Println("Loaded policy from file.")
 	return res

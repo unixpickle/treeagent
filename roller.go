@@ -1,6 +1,8 @@
 package treeagent
 
 import (
+	"math"
+
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anynet/anyrnn"
 	"github.com/unixpickle/anyrl"
@@ -12,7 +14,7 @@ import (
 // in one or more environments.
 type Roller struct {
 	// Policy is used to sample actions.
-	Policy *Tree
+	Policy *Forest
 
 	// Creator is the anyvec.Creator behind vectors in the
 	// environment(s) that this Roller will be using.
@@ -47,8 +49,11 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 				var outProbs []float64
 				for i := 0; i < batch; i++ {
 					subFeatures := features[i*numFeatures : (i+1)*numFeatures]
-					classDist := r.Policy.Find(subFeatures)
+					classDist := r.Policy.Apply(subFeatures)
 					outProbs = append(outProbs, classDist...)
+				}
+				for i, x := range outProbs {
+					outProbs[i] = math.Log(x)
 				}
 
 				vecData := r.Creator.MakeNumericList(outProbs)
