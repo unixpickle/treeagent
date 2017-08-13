@@ -18,9 +18,6 @@ type Roller struct {
 	// environment(s) that this Roller will be using.
 	Creator anyvec.Creator
 
-	// NumActions is the total number of actions.
-	NumActions int
-
 	// These functions are called to produce tapes when
 	// building a RolloutSet.
 	//

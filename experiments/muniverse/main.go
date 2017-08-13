@@ -60,13 +60,12 @@ func main() {
 	creator := anyvec32.CurrentCreator()
 
 	// Create a decision tree policy.
-	policy := loadOrCreatePolicy(flags.SaveFile)
+	policy := loadOrCreatePolicy(flags)
 
 	// Setup a Roller for producing rollouts.
 	roller := &treeagent.Roller{
-		Policy:     policy,
-		Creator:    creator,
-		NumActions: 1 + len(spec.KeyWhitelist),
+		Policy:  policy,
+		Creator: creator,
 
 		// Compress the input frames as we store them.
 		// If we used a ReferenceTape for the input, the

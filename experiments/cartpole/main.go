@@ -40,9 +40,8 @@ func main() {
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
-		Policy:     &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
-		Creator:    creator,
-		NumActions: 2,
+		Policy:  &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
+		Creator: creator,
 	}
 
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {

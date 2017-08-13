@@ -54,9 +54,8 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
-		Policy:     &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
-		Creator:    creator,
-		NumActions: 2,
+		Policy:  &treeagent.Tree{Distribution: treeagent.NewActionDist(2)},
+		Creator: creator,
 	}
 
 	var lastMean float64
