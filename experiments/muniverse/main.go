@@ -29,6 +29,7 @@ type Flags struct {
 	LogInterval  int
 	Depth        int
 	StepSize     float64
+	Discount     float64
 	Truncation   int
 	SaveFile     string
 	Env          string
@@ -44,6 +45,7 @@ func main() {
 	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
+	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
 	flag.IntVar(&flags.Truncation, "truncation", 20, "trees in forest")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
@@ -60,6 +62,13 @@ func main() {
 	}
 
 	log.Println("Run with arguments:", os.Args[1:])
+
+	var judger anypg.ActionJudger
+	if flags.Discount != 0 {
+		judger = &anypg.QJudger{Discount: flags.Discount, Normalize: true}
+	} else {
+		judger = &anypg.TotalJudger{Normalize: true}
+	}
 
 	// Setup vector creator.
 	creator := anyvec32.CurrentCreator()
@@ -95,7 +104,6 @@ func main() {
 			// Train on the rollouts.
 			log.Println("Training on batch...")
 			numFeatures := NumFeatures(spec)
-			judger := anypg.TotalJudger{}
 			advantages := judger.JudgeActions(r)
 			rawSamples := treeagent.RolloutSamples(r, advantages)
 			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
