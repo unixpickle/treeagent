@@ -7,5 +7,5 @@ cat search_output.csv |
   sed -E $'s/,([-0-9\\.]*)$/\\\n\\1/g' |
   tr ',' ' ' >data/all.txt
 
-cat data/all.txt | tail -n +101 >data/train.txt
-cat data/all.txt | head -n 100 >data/test.txt
+cat data/all.txt | tail -n +501 >data/train.txt
+cat data/all.txt | head -n 500 >data/test.txt
