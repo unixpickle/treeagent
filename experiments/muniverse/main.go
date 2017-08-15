@@ -30,7 +30,6 @@ type Flags struct {
 	Depth        int
 	StepSize     float64
 	Discount     float64
-	Truncation   int
 	SaveFile     string
 	Env          string
 	RecordDir    string
@@ -46,7 +45,6 @@ func main() {
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
-	flag.IntVar(&flags.Truncation, "truncation", 20, "trees in forest")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
 	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
@@ -75,8 +73,9 @@ func main() {
 
 	// Setup a Roller for producing rollouts.
 	roller := &treeagent.Roller{
-		Policy:  loadOrCreatePolicy(flags),
-		Creator: creator,
+		Policy:      loadOrCreatePolicy(flags),
+		Creator:     creator,
+		ActionSpace: anyrl.Softmax{},
 
 		// Compress the input frames as we store them.
 		// If we used a ReferenceTape for the input, the
@@ -107,9 +106,9 @@ func main() {
 			advantages := judger.JudgeActions(r)
 			rawSamples := treeagent.RolloutSamples(r, advantages)
 			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
-			roller.Policy.Add(treeagent.BuildTree(treeagent.AllSamples(samples),
-				numFeatures, flags.Depth))
-			roller.Policy.Truncate(flags.Truncation)
+			tree := treeagent.BuildTree(treeagent.AllSamples(samples),
+				anyrl.Softmax{}, numFeatures, flags.Depth)
+			roller.Policy.Add(tree, flags.StepSize)
 
 			// Save the new policy.
 			trainLock.Lock()
@@ -194,7 +193,7 @@ func loadOrCreatePolicy(flags *Flags) *treeagent.Forest {
 	if err != nil {
 		log.Println("Created new policy.")
 		n := 1 + len(muniverse.SpecForName(flags.Env).KeyWhitelist)
-		return treeagent.NewForest(flags.StepSize, n)
+		return treeagent.NewForest(n)
 	}
 	var res *treeagent.Forest
 	must(json.Unmarshal(data, &res))

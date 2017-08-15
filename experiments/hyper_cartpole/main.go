@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"runtime"
 
@@ -20,7 +21,7 @@ const (
 )
 
 func main() {
-	fmt.Println("depth,step_size,truncation,reward")
+	fmt.Println("depth,step_size,step_decay,reward")
 
 	creator := anyvec32.CurrentCreator()
 
@@ -42,17 +43,19 @@ func main() {
 
 func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 	depth := rand.Intn(8)
-	stepSize := rand.Float64()
-	truncation := rand.Intn(30) + 1
+	stepSize := math.Exp(rand.Float64()*8 - 4)
+	stepDecay := rand.Float64()
 
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
-		Policy:  treeagent.NewForest(stepSize, 2),
-		Creator: creator,
+		Policy:      treeagent.NewForest(2),
+		Creator:     creator,
+		ActionSpace: anyrl.Softmax{},
 	}
 
 	var lastMean float64
-	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
+	currentStep := stepSize
+	for batchIdx := 0; batchIdx <= NumBatches; batchIdx++ {
 		// Gather episode rollouts.
 		var rollouts []*anyrl.RolloutSet
 		for i := 0; i < RolloutsPerBatch; i++ {
@@ -67,15 +70,20 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		// Print the rewards.
 		lastMean = r.Rewards.Mean()
 
+		if batchIdx == NumBatches {
+			break
+		}
+
 		// Train on the rollouts.
 		judger := anypg.TotalJudger{Normalize: true}
 		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
-		tree := treeagent.BuildTree(treeagent.AllSamples(samples), 4, depth)
-		roller.Policy.Add(tree)
-		roller.Policy.Truncate(truncation)
+		tree := treeagent.BuildTree(treeagent.AllSamples(samples), anyrl.Softmax{},
+			4, depth)
+		roller.Policy.Add(tree, currentStep)
+		currentStep *= stepDecay
 	}
 
-	fmt.Printf("%d,%f,%d,%f\n", depth, stepSize, truncation, lastMean)
+	fmt.Printf("%d,%f,%f,%f\n", depth, stepSize, stepDecay, lastMean)
 }
 
 func must(err error) {

@@ -1,62 +1,44 @@
 package treeagent
 
-// ActionDist is a probability distribution over actions.
-// It maps each action index to a probability.
-type ActionDist []float64
+// ActionParams is a probability distribution represented
+// as parameters for an action distribution.
+type ActionParams []float64
 
-// Forest is a decision forest.
+// A Forest is a weighted ensemble of trees.
 //
-// The Trees in a Forest are weighted geometrically.
-// Each time a tree is added, the forest output becomes:
-//
-//     (1-step)*oldForest + step*newTree
-//
-// Before any trees are added, the forest uses Base as the
-// action distribution.
+// Before any trees are added, the Forest uses Base as the
+// parameter vector.
+// As trees are added, their weighted outputs are added to
+// the parameters in Base.
 type Forest struct {
-	Step  float64
-	Base  ActionDist
-	Trees []*Tree
+	Base    ActionParams
+	Trees   []*Tree
+	Weights []float64
 }
 
-// NewForest creates an empty forest with a uniform
-// distribution and the given step size.
-func NewForest(step float64, numActions int) *Forest {
-	base := make(ActionDist, numActions)
-	for i := range base {
-		base[i] = 1 / float64(numActions)
-	}
-	return &Forest{
-		Step: step,
-		Base: base,
-	}
+// NewForest creates an empty forest with a set of zero
+// parameters.
+func NewForest(paramDim int) *Forest {
+	return &Forest{Base: make(ActionParams, paramDim)}
 }
 
 // Add adds a tree to the forest.
-func (f *Forest) Add(t *Tree) {
-	f.Trees = append(f.Trees, t)
+func (f *Forest) Add(tree *Tree, weight float64) {
+	f.Trees = append(f.Trees, tree)
+	f.Weights = append(f.Weights, weight)
 }
 
-// Truncate removes old trees so that the forest only
-// contains n trees.
-func (f *Forest) Truncate(n int) {
-	if n >= len(f.Trees) {
-		return
-	}
-	f.Trees = append([]*Tree{}, f.Trees[len(f.Trees)-n:]...)
-}
-
-// Apply runs the features through each tree in the forest
-// and produces an aggregate action distribution.
-func (f *Forest) Apply(features []float64) ActionDist {
-	dist := append(ActionDist{}, f.Base...)
-	for _, tree := range f.Trees {
-		for i := range dist {
-			dist[i] *= 1 - f.Step
+// Apply runs the features through each Tree and produces
+// a parameter vector.
+func (f *Forest) Apply(features []float64) ActionParams {
+	params := append(ActionParams{}, f.Base...)
+	for i, tree := range f.Trees {
+		w := f.Weights[i]
+		for j, x := range tree.Find(features) {
+			params[j] += x * w
 		}
-		dist[tree.Find(features)] += f.Step
 	}
-	return dist
+	return params
 }
 
 // Tree is a node in a decision tree.
@@ -66,7 +48,7 @@ type Tree struct {
 	Leaf bool
 
 	// Information for leaf nodes.
-	Action int
+	Params ActionParams
 
 	// Information for branching nodes.
 	Feature      int
@@ -75,10 +57,10 @@ type Tree struct {
 	GreaterEqual *Tree
 }
 
-// Find returns the action for the feature vector.
-func (t *Tree) Find(features []float64) int {
+// Find finds the leaf parameters for the features.
+func (t *Tree) Find(features []float64) ActionParams {
 	if t.Leaf {
-		return t.Action
+		return t.Params
 	}
 	val := features[t.Feature]
 	if val < t.Threshold {

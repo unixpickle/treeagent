@@ -1,8 +1,6 @@
 package treeagent
 
 import (
-	"math"
-
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anynet/anyrnn"
 	"github.com/unixpickle/anyrl"
@@ -19,6 +17,9 @@ type Roller struct {
 	// Creator is the anyvec.Creator behind vectors in the
 	// environment(s) that this Roller will be using.
 	Creator anyvec.Creator
+
+	// ActionSpace produces actions from parameters.
+	ActionSpace anyrl.Sampler
 
 	// These functions are called to produce tapes when
 	// building a RolloutSet.
@@ -46,17 +47,14 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 				features := vecToFloats(in.Output())
 				numFeatures := len(features) / batch
 
-				var outProbs []float64
+				var outParams []float64
 				for i := 0; i < batch; i++ {
 					subFeatures := features[i*numFeatures : (i+1)*numFeatures]
-					classDist := r.Policy.Apply(subFeatures)
-					outProbs = append(outProbs, classDist...)
-				}
-				for i, x := range outProbs {
-					outProbs[i] = math.Log(x)
+					params := r.Policy.Apply(subFeatures)
+					outParams = append(outParams, params...)
 				}
 
-				vecData := r.Creator.MakeNumericList(outProbs)
+				vecData := r.Creator.MakeNumericList(outParams)
 				out = anydiff.NewConst(r.Creator.MakeVectorData(vecData))
 				newState = state
 				return
@@ -65,7 +63,7 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 				return anydiff.NewConst(r.Creator.MakeVector(0))
 			},
 		},
-		ActionSpace:      anyrl.Softmax{},
+		ActionSpace:      r.ActionSpace,
 		MakeInputTape:    r.MakeInputTape,
 		MakeActionTape:   r.MakeActionTape,
 		MakeAgentOutTape: r.MakeAgentOutTape,

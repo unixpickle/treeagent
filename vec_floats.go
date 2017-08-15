@@ -16,3 +16,14 @@ func vecToFloats(vec anyvec.Vector) []float64 {
 	}
 	return res
 }
+
+func numToFloat(num anyvec.Numeric) float64 {
+	switch num := num.(type) {
+	case float64:
+		return num
+	case float32:
+		return float64(num)
+	default:
+		panic("unsupported numeric type")
+	}
+}

@@ -1,22 +1,31 @@
 package treeagent
 
 import (
-	"math"
 	"runtime"
 	"sync"
 
+	"github.com/unixpickle/anydiff"
+	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 )
 
 // BuildTree builds a tree which tries to match the action
 // distributions of the samples.
-func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
+func BuildTree(data []Sample, actionSpace anyrl.LogProber, numFeatures,
+	maxDepth int) *Tree {
+	return buildTree(gradientSamples(data, actionSpace), numFeatures, maxDepth)
+}
+
+func buildTree(data []*gradientSample, numFeatures, maxDepth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
 	} else if maxDepth == 0 || len(data) == 1 {
+		mean := sumGradients(data)
+		mean.Scale(mean.Creator().MakeNumeric(1 / float64(len(data))))
 		return &Tree{
 			Leaf:   true,
-			Action: bestAction(data),
+			Params: vecToFloats(mean),
 		}
 	}
 
@@ -51,14 +60,14 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 
 	if bestSplit == nil {
 		// If no split can help, create a leaf.
-		return BuildTree(data, numFeatures, 0)
+		return buildTree(data, numFeatures, 0)
 	}
 
 	return &Tree{
 		Feature:      bestSplit.Feature,
 		Threshold:    bestSplit.Threshold,
-		LessThan:     BuildTree(bestSplit.LeftSamples, numFeatures, maxDepth-1),
-		GreaterEqual: BuildTree(bestSplit.RightSamples, numFeatures, maxDepth-1),
+		LessThan:     buildTree(bestSplit.LeftSamples, numFeatures, maxDepth-1),
+		GreaterEqual: buildTree(bestSplit.RightSamples, numFeatures, maxDepth-1),
 	}
 }
 
@@ -67,22 +76,20 @@ func BuildTree(data []Sample, numFeatures, maxDepth int) *Tree {
 // It returns nil if no split is effective.
 //
 // There must be at least one sample.
-func optimalSplit(samples []Sample, feature int) *splitInfo {
+func optimalSplit(samples []*gradientSample, feature int) *splitInfo {
 	sorted, featureVals := sortByFeature(samples, feature)
 
-	rightSum := newRewardAverages()
-	leftSum := newRewardAverages()
-	for _, sample := range samples {
-		rightSum.Add(sample)
-	}
+	rightSum := sumGradients(sorted)
+	leftSum := rightSum.Creator().MakeVector(rightSum.Len())
 	lastValue := featureVals[0]
 
 	var bestSplit *splitInfo
 	for i, sample := range sorted {
 		if featureVals[i] > lastValue {
+			improvement := splitImprovement(leftSum, rightSum, i, len(sorted)-i)
 			newSplit := &splitInfo{
 				Feature:      feature,
-				Advantage:    advantageForSplit(leftSum, rightSum),
+				Improvement:  improvement,
 				Threshold:    (featureVals[i] + lastValue) / 2,
 				LeftSamples:  sorted[:i],
 				RightSamples: sorted[i:],
@@ -90,16 +97,17 @@ func optimalSplit(samples []Sample, feature int) *splitInfo {
 			bestSplit = betterSplit(bestSplit, newSplit)
 			lastValue = featureVals[i]
 		}
-		leftSum.Add(sample)
-		rightSum.Remove(sample)
+		leftSum.Add(sample.Gradient)
+		rightSum.Sub(sample.Gradient)
 	}
 
 	return bestSplit
 }
 
-func sortByFeature(samples []Sample, feature int) ([]Sample, []float64) {
+func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,
+	[]float64) {
 	var vals []float64
-	var sorted []Sample
+	var sorted []*gradientSample
 	for _, sample := range samples {
 		vals = append(vals, sample.Feature(feature))
 		sorted = append(sorted, sample)
@@ -112,17 +120,21 @@ func sortByFeature(samples []Sample, feature int) ([]Sample, []float64) {
 	return sorted, vals
 }
 
-type splitInfo struct {
-	Feature   int
-	Threshold float64
-	Advantage float64
-
-	LeftSamples  []Sample
-	RightSamples []Sample
+func splitImprovement(left, right anyvec.Vector, leftCount, rightCount int) float64 {
+	leftMean := left.Copy()
+	leftMean.Scale(left.Creator().MakeNumeric(1 / float64(leftCount)))
+	rightMean := right.Copy()
+	rightMean.Scale(right.Creator().MakeNumeric(1 / float64(rightCount)))
+	return numToFloat(left.Dot(leftMean)) + numToFloat(right.Dot(rightMean))
 }
 
-func advantageForSplit(left, right *rewardAverages) float64 {
-	return left.GreedyAdvantage() + right.GreedyAdvantage()
+type splitInfo struct {
+	Feature     int
+	Threshold   float64
+	Improvement float64
+
+	LeftSamples  []*gradientSample
+	RightSamples []*gradientSample
 }
 
 func betterSplit(s1, s2 *splitInfo) *splitInfo {
@@ -130,58 +142,38 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 		return s2
 	} else if s2 == nil {
 		return s1
-	} else if s1.Advantage > s2.Advantage {
+	} else if s1.Improvement > s2.Improvement {
 		return s1
 	} else {
 		return s2
 	}
 }
 
-func bestAction(data []Sample) int {
-	avg := newRewardAverages()
-	for _, sample := range data {
-		avg.Add(sample)
+type gradientSample struct {
+	Sample
+	Gradient anyvec.Vector
+}
+
+func gradientSamples(samples []Sample, space anyrl.LogProber) []*gradientSample {
+	res := make([]*gradientSample, len(samples))
+	for i, s := range samples {
+		params := &anydiff.Var{Vector: s.ActionParams()}
+		c := params.Vector.Creator()
+		obj := anydiff.Scale(
+			space.LogProb(params, s.Action(), 1),
+			c.MakeNumeric(s.Advantage()),
+		)
+		grad := anydiff.NewGrad(params)
+		obj.Propagate(anyvec.Ones(c, 1), grad)
+		res[i] = &gradientSample{Sample: s, Gradient: grad[params]}
 	}
-	return avg.BestAction()
+	return res
 }
 
-type rewardAverages struct {
-	ActionTotals map[int]float64
-	ActionCounts map[int]int
-	Count        int
-}
-
-func newRewardAverages() *rewardAverages {
-	return &rewardAverages{
-		ActionTotals: map[int]float64{},
-		ActionCounts: map[int]int{},
+func sumGradients(samples []*gradientSample) anyvec.Vector {
+	sum := samples[0].Gradient.Copy()
+	for _, sample := range samples[1:] {
+		sum.Add(sample.Gradient)
 	}
-}
-
-func (r *rewardAverages) Add(sample Sample) {
-	r.ActionTotals[sample.Action()] += sample.Advantage() / sample.ActionProb()
-	r.ActionCounts[sample.Action()]++
-	r.Count++
-}
-
-func (r *rewardAverages) Remove(sample Sample) {
-	r.ActionTotals[sample.Action()] -= sample.Advantage() / sample.ActionProb()
-	r.ActionCounts[sample.Action()]--
-	r.Count--
-}
-
-func (r *rewardAverages) BestAction() int {
-	var bestAction int
-	bestAdvantage := math.Inf(-1)
-	for action, total := range r.ActionTotals {
-		if total >= bestAdvantage {
-			bestAdvantage = total
-			bestAction = action
-		}
-	}
-	return bestAction
-}
-
-func (r *rewardAverages) GreedyAdvantage() float64 {
-	return r.ActionTotals[r.BestAction()]
+	return sum
 }

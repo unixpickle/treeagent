@@ -17,7 +17,9 @@ const (
 	RolloutsPerBatch = 100
 	NumBatches       = 100
 
-	Depth = 7
+	StepSize  = 2
+	StepDecay = 0.95
+	Depth     = 4
 )
 
 func main() {
@@ -33,12 +35,15 @@ func main() {
 	env, err := anyrl.GymEnv(creator, client, false)
 	must(err)
 
-	// Setup a roller with a uniformly random policy.
+	// Setup a roller with a zero-initialized policy.
+	actionSpace := anyrl.Softmax{}
 	roller := &treeagent.Roller{
-		Policy:  treeagent.NewForest(0.1, 2),
-		Creator: creator,
+		Policy:      treeagent.NewForest(2),
+		Creator:     creator,
+		ActionSpace: actionSpace,
 	}
 
+	var step float64 = StepSize
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
 		// Gather episode rollouts.
 		var rollouts []*anyrl.RolloutSet
@@ -57,8 +62,10 @@ func main() {
 		// Train on the rollouts.
 		judger := anypg.TotalJudger{Normalize: true}
 		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
-		tree := treeagent.BuildTree(treeagent.AllSamples(samples), 4, Depth)
-		roller.Policy.Add(tree)
+		tree := treeagent.BuildTree(treeagent.AllSamples(samples), actionSpace,
+			4, Depth)
+		roller.Policy.Add(tree, step)
+		step *= StepDecay
 	}
 }
 
