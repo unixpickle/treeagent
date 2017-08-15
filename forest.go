@@ -69,3 +69,14 @@ func (t *Tree) Find(features []float64) ActionParams {
 		return t.GreaterEqual.Find(features)
 	}
 }
+
+func (t *Tree) scaleParams(scale float64) {
+	if t.Leaf {
+		for i, x := range t.Params {
+			t.Params[i] = x * scale
+		}
+	} else {
+		t.LessThan.scaleParams(scale)
+		t.GreaterEqual.scaleParams(scale)
+	}
+}

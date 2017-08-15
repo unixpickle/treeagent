@@ -14,18 +14,18 @@ import (
 // distributions of the samples.
 func BuildTree(data []Sample, actionSpace anyrl.LogProber, numFeatures,
 	maxDepth int) *Tree {
-	return buildTree(gradientSamples(data, actionSpace), numFeatures, maxDepth)
+	res := buildTree(gradientSamples(data, actionSpace), numFeatures, maxDepth)
+	res.scaleParams(1 / float64(len(data)))
+	return res
 }
 
 func buildTree(data []*gradientSample, numFeatures, maxDepth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
 	} else if maxDepth == 0 || len(data) == 1 {
-		mean := sumGradients(data)
-		mean.Scale(mean.Creator().MakeNumeric(1 / float64(len(data))))
 		return &Tree{
 			Leaf:   true,
-			Params: vecToFloats(mean),
+			Params: vecToFloats(sumGradients(data)),
 		}
 	}
 
@@ -86,7 +86,7 @@ func optimalSplit(samples []*gradientSample, feature int) *splitInfo {
 	var bestSplit *splitInfo
 	for i, sample := range sorted {
 		if featureVals[i] > lastValue {
-			improvement := splitImprovement(leftSum, rightSum, i, len(sorted)-i)
+			improvement := splitImprovement(leftSum, rightSum)
 			newSplit := &splitInfo{
 				Feature:      feature,
 				Improvement:  improvement,
@@ -120,11 +120,9 @@ func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,
 	return sorted, vals
 }
 
-func splitImprovement(left, right anyvec.Vector, leftCount, rightCount int) float64 {
+func splitImprovement(left, right anyvec.Vector) float64 {
 	leftMean := left.Copy()
-	leftMean.Scale(left.Creator().MakeNumeric(1 / float64(leftCount)))
 	rightMean := right.Copy()
-	rightMean.Scale(right.Creator().MakeNumeric(1 / float64(rightCount)))
 	return numToFloat(left.Dot(leftMean)) + numToFloat(right.Dot(rightMean))
 }
 

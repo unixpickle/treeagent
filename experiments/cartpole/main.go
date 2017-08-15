@@ -17,9 +17,9 @@ const (
 	RolloutsPerBatch = 100
 	NumBatches       = 100
 
-	StepSize  = 2
-	StepDecay = 0.95
-	Depth     = 4
+	StepSize  = 5
+	StepDecay = 0.98
+	Depth     = 6
 )
 
 func main() {

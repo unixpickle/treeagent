@@ -43,7 +43,7 @@ func main() {
 
 func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 	depth := rand.Intn(8)
-	stepSize := math.Exp(rand.Float64()*8 - 4)
+	stepSize := math.Exp(rand.Float64()*9 - 4)
 	stepDecay := rand.Float64()
 
 	// Setup a roller with a uniformly random policy.
