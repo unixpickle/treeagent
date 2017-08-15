@@ -1,17 +1,20 @@
 package treeagent
 
 import (
+	"math"
+
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyvec"
 )
 
 // Sample is a training sample for building a tree.
 //
-// Each Sample maps an observation and an action to an
-// advantage approximator of some kind.
+// Each Sample provides information about a single
+// timestep in an episode.
 type Sample interface {
 	Feature(idx int) float64
 	Action() int
+	ActionProb() float64
 	Advantage() float64
 }
 
@@ -32,11 +35,14 @@ func RolloutSamples(r *anyrl.RolloutSet, advantages anyrl.Rewards) <-chan Sample
 	go func() {
 		defer close(res)
 		inChan := r.Inputs.ReadTape(0, -1)
-		outChan := r.Actions.ReadTape(0, -1)
+		actChan := r.Actions.ReadTape(0, -1)
+		outChan := r.AgentOuts.ReadTape(0, -1)
 		timestep := 0
 		for input := range inChan {
 			output := <-outChan
+			action := <-actChan
 			inValues := vecToFloats(input.Packed)
+			outValues := vecToFloats(output.Packed)
 
 			batch := input.NumPresent()
 			numFeatures := len(inValues) / batch
@@ -47,12 +53,14 @@ func RolloutSamples(r *anyrl.RolloutSet, advantages anyrl.Rewards) <-chan Sample
 					continue
 				}
 				subIns := inValues[i*numFeatures : (i+1)*numFeatures]
-				subOuts := output.Packed.Slice(i*numActions, (i+1)*numActions)
-				action := anyvec.MaxIndex(subOuts)
+				subActs := action.Packed.Slice(i*numActions, (i+1)*numActions)
+				action := anyvec.MaxIndex(subActs)
+				prob := math.Exp(outValues[i*numActions+action])
 				res <- &memorySample{
-					features:  subIns,
-					action:    action,
-					advantage: advantages[lane][timestep],
+					features:   subIns,
+					action:     action,
+					actionProb: prob,
+					advantage:  advantages[lane][timestep],
 				}
 				i++
 			}
@@ -81,9 +89,10 @@ func Uint8Samples(numFeatures int, incoming <-chan Sample) <-chan Sample {
 		defer close(res)
 		for in := range incoming {
 			sample := &uint8Sample{
-				features:  make([]uint8, numFeatures),
-				action:    in.Action(),
-				advantage: in.Advantage(),
+				features:   make([]uint8, numFeatures),
+				action:     in.Action(),
+				actionProb: in.ActionProb(),
+				advantage:  in.Advantage(),
 			}
 			for i := 0; i < numFeatures; i++ {
 				sample.features[i] = uint8(in.Feature(i))
@@ -105,9 +114,10 @@ func AllSamples(ch <-chan Sample) []Sample {
 }
 
 type memorySample struct {
-	features  []float64
-	action    int
-	advantage float64
+	features   []float64
+	action     int
+	actionProb float64
+	advantage  float64
 }
 
 func (m *memorySample) Feature(idx int) float64 {
@@ -118,14 +128,19 @@ func (m *memorySample) Action() int {
 	return m.action
 }
 
+func (m *memorySample) ActionProb() float64 {
+	return m.actionProb
+}
+
 func (m *memorySample) Advantage() float64 {
 	return m.advantage
 }
 
 type uint8Sample struct {
-	features  []uint8
-	action    int
-	advantage float64
+	features   []uint8
+	action     int
+	actionProb float64
+	advantage  float64
 }
 
 func (u *uint8Sample) Feature(idx int) float64 {
@@ -134,6 +149,10 @@ func (u *uint8Sample) Feature(idx int) float64 {
 
 func (u *uint8Sample) Action() int {
 	return u.action
+}
+
+func (u *uint8Sample) ActionProb() float64 {
+	return u.actionProb
 }
 
 func (u *uint8Sample) Advantage() float64 {

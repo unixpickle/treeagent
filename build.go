@@ -159,13 +159,13 @@ func newRewardAverages() *rewardAverages {
 }
 
 func (r *rewardAverages) Add(sample Sample) {
-	r.ActionTotals[sample.Action()] += sample.Advantage()
+	r.ActionTotals[sample.Action()] += sample.Advantage() / sample.ActionProb()
 	r.ActionCounts[sample.Action()]++
 	r.Count++
 }
 
 func (r *rewardAverages) Remove(sample Sample) {
-	r.ActionTotals[sample.Action()] -= sample.Advantage()
+	r.ActionTotals[sample.Action()] -= sample.Advantage() / sample.ActionProb()
 	r.ActionCounts[sample.Action()]--
 	r.Count--
 }
@@ -174,17 +174,12 @@ func (r *rewardAverages) BestAction() int {
 	var bestAction int
 	bestAdvantage := math.Inf(-1)
 	for action, total := range r.ActionTotals {
-		mean := total / float64(r.ActionCounts[action])
-		if mean >= bestAdvantage {
-			bestAdvantage = mean
+		if total >= bestAdvantage {
+			bestAdvantage = total
 			bestAction = action
 		}
 	}
 	return bestAction
-}
-
-func (r *rewardAverages) ActionMean(action int) float64 {
-	return r.ActionTotals[action] / float64(r.ActionCounts[action])
 }
 
 func (r *rewardAverages) GreedyAdvantage() float64 {
