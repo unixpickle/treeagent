@@ -121,9 +121,7 @@ func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,
 }
 
 func splitImprovement(left, right anyvec.Vector) float64 {
-	leftMean := left.Copy()
-	rightMean := right.Copy()
-	return numToFloat(left.Dot(leftMean)) + numToFloat(right.Dot(rightMean))
+	return numToFloat(left.Dot(left)) + numToFloat(right.Dot(right))
 }
 
 type splitInfo struct {

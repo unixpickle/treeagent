@@ -15,6 +15,7 @@ import (
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/lazyseq"
@@ -97,8 +98,9 @@ func main() {
 			r := anyrl.PackRolloutSets(rollouts)
 
 			// Print the stats for the batch.
-			log.Printf("batch %d: mean=%f stddev=%f", batchIdx,
-				r.Rewards.Mean(), math.Sqrt(r.Rewards.Variance()))
+			log.Printf("batch %d: mean=%f stddev=%f entropy=%f", batchIdx,
+				r.Rewards.Mean(), math.Sqrt(r.Rewards.Variance()),
+				actionEntropy(creator, r))
 
 			// Train on the rollouts.
 			log.Println("Training on batch...")
@@ -199,6 +201,13 @@ func loadOrCreatePolicy(flags *Flags) *treeagent.Forest {
 	must(json.Unmarshal(data, &res))
 	log.Println("Loaded policy from file.")
 	return res
+}
+
+func actionEntropy(c anyvec.Creator, r *anyrl.RolloutSet) anyvec.Numeric {
+	outSeq := lazyseq.TapeRereader(c, r.AgentOuts)
+	entropyer := anyrl.Softmax{}
+	entropies := lazyseq.Map(outSeq, entropyer.Entropy)
+	return anyvec.Sum(lazyseq.Mean(entropies).Output())
 }
 
 func must(err error) {
