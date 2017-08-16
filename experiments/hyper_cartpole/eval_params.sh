@@ -5,7 +5,7 @@ if [ ! -f model_out ]; then
   exit 1
 fi
 
-echo 'Enter depth, step size, and truncation as a space separated list:'
+echo 'Enter depth, step size, and step decay as a space separated list:'
 echo
 
 neurocli run -net model_out
