@@ -31,6 +31,7 @@ type Flags struct {
 	Depth        int
 	StepSize     float64
 	Discount     float64
+	EntropyReg   float64
 	SaveFile     string
 	Env          string
 	RecordDir    string
@@ -46,6 +47,7 @@ func main() {
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
+	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
 	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
@@ -69,6 +71,8 @@ func main() {
 		judger = &anypg.TotalJudger{Normalize: true}
 	}
 
+	actionSpace := anyrl.Softmax{}
+
 	// Setup vector creator.
 	creator := anyvec32.CurrentCreator()
 
@@ -76,13 +80,24 @@ func main() {
 	roller := &treeagent.Roller{
 		Policy:      loadOrCreatePolicy(flags),
 		Creator:     creator,
-		ActionSpace: anyrl.Softmax{},
+		ActionSpace: actionSpace,
 
 		// Compress the input frames as we store them.
 		// If we used a ReferenceTape for the input, the
 		// program would use way too much memory.
 		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
 			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
+		},
+	}
+
+	// Setup a Builder for producing trees.
+	builder := &treeagent.Builder{
+		NumFeatures: NumFeatures(spec),
+		MaxDepth:    flags.Depth,
+		ActionSpace: actionSpace,
+		Regularizer: &anypg.EntropyReg{
+			Entropyer: actionSpace,
+			Coeff:     flags.EntropyReg,
 		},
 	}
 
@@ -108,8 +123,7 @@ func main() {
 			advantages := judger.JudgeActions(r)
 			rawSamples := treeagent.RolloutSamples(r, advantages)
 			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
-			tree := treeagent.BuildTree(treeagent.AllSamples(samples),
-				anyrl.Softmax{}, numFeatures, flags.Depth)
+			tree := builder.Build(treeagent.AllSamples(samples))
 			roller.Policy.Add(tree, flags.StepSize)
 
 			// Save the new policy.
