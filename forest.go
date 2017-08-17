@@ -1,5 +1,7 @@
 package treeagent
 
+import "github.com/unixpickle/anyvec"
+
 // ActionParams is a probability distribution represented
 // as parameters for an action distribution.
 type ActionParams []float64
@@ -39,6 +41,22 @@ func (f *Forest) Apply(features []float64) ActionParams {
 		}
 	}
 	return params
+}
+
+func (f *Forest) applyBatch(in anyvec.Vector, batch int) anyvec.Vector {
+	features := vecToFloats(in)
+	numFeatures := len(features) / batch
+
+	var outParams []float64
+	for i := 0; i < batch; i++ {
+		subFeatures := features[i*numFeatures : (i+1)*numFeatures]
+		params := f.Apply(subFeatures)
+		outParams = append(outParams, params...)
+	}
+
+	c := in.Creator()
+	vecData := c.MakeNumericList(outParams)
+	return c.MakeVectorData(vecData)
 }
 
 // Tree is a node in a decision tree.

@@ -44,18 +44,7 @@ func (r *Roller) rnnRoller() *anyrl.RNNRoller {
 		Block: &anyrnn.FuncBlock{
 			Func: func(in, state anydiff.Res, batch int) (out,
 				newState anydiff.Res) {
-				features := vecToFloats(in.Output())
-				numFeatures := len(features) / batch
-
-				var outParams []float64
-				for i := 0; i < batch; i++ {
-					subFeatures := features[i*numFeatures : (i+1)*numFeatures]
-					params := r.Policy.Apply(subFeatures)
-					outParams = append(outParams, params...)
-				}
-
-				vecData := r.Creator.MakeNumericList(outParams)
-				out = anydiff.NewConst(r.Creator.MakeVectorData(vecData))
+				out = anydiff.NewConst(r.Policy.applyBatch(in.Output(), batch))
 				newState = state
 				return
 			},
