@@ -1,6 +1,7 @@
 package treeagent
 
 import (
+	"math"
 	"math/rand"
 	"runtime"
 	"testing"
@@ -14,6 +15,37 @@ const (
 	numBenchmarkSamples  = 100
 	benchmarkDepth       = 3
 )
+
+func TestMSETracker(t *testing.T) {
+	c := anyvec64.DefaultCreator{}
+
+	samples := []*gradientSample{
+		{Gradient: c.MakeVectorData([]float64{1, 2})},
+		{Gradient: c.MakeVectorData([]float64{3, 2})},
+		{Gradient: c.MakeVectorData([]float64{5, 1})},
+	}
+
+	tracker := &mseTracker{}
+	tracker.Reset(samples)
+
+	// Computed using Octave.
+	qualities := []float64{
+		-8.66666666666666,
+		-2.5,
+		-2,
+		-8.66666666666666,
+	}
+	for i := 0; i <= len(samples); i++ {
+		actual := tracker.Quality()
+		expected := qualities[i]
+		if math.Abs(actual-expected) > 1e-5 {
+			t.Errorf("split %d: expected %f but got %f", i, expected, actual)
+		}
+		if i < len(samples) {
+			tracker.MoveToLeft(samples[i])
+		}
+	}
+}
 
 func BenchmarkBuild(b *testing.B) {
 	c := anyvec64.DefaultCreator{}
@@ -55,5 +87,4 @@ func BenchmarkBuild(b *testing.B) {
 			}
 		})
 	}
-
 }

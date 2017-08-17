@@ -74,7 +74,10 @@ func (j *Judger) Train(data []Sample, numFeatures int, maxDepth int, weight floa
 			Gradient: vec,
 		})
 	}
-	builder := &Builder{NumFeatures: numFeatures}
+	builder := &Builder{
+		NumFeatures: numFeatures,
+		Algorithm:   MSEAlgorithm,
+	}
 	tree := builder.buildTree(gradSamples, maxDepth)
 	j.ValueFunc.Add(tree, weight)
 }

@@ -48,6 +48,7 @@ func main() {
 		NumFeatures: 4,
 		MaxDepth:    Depth,
 		ActionSpace: actionSpace,
+		Algorithm:   treeagent.MSEAlgorithm,
 	}
 
 	var step float64 = StepSize
