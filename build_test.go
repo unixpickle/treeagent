@@ -33,6 +33,12 @@ func BenchmarkBuild(b *testing.B) {
 		samples = append(samples, sample)
 	}
 
+	builder := &Builder{
+		NumFeatures: numBenchmarkFeatures,
+		MaxDepth:    benchmarkDepth,
+		ActionSpace: anyrl.Softmax{},
+	}
+
 	for _, multithread := range []bool{false, true} {
 		name := "Single"
 		if multithread {
@@ -45,7 +51,7 @@ func BenchmarkBuild(b *testing.B) {
 				defer runtime.GOMAXPROCS(old)
 			}
 			for i := 0; i < b.N; i++ {
-				BuildTree(samples, anyrl.Softmax{}, numBenchmarkFeatures, benchmarkDepth)
+				builder.Build(samples)
 			}
 		})
 	}

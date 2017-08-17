@@ -43,6 +43,13 @@ func main() {
 		ActionSpace: actionSpace,
 	}
 
+	// Setup a way to build trees.
+	builder := &treeagent.Builder{
+		NumFeatures: 4,
+		MaxDepth:    Depth,
+		ActionSpace: actionSpace,
+	}
+
 	var step float64 = StepSize
 	for batchIdx := 0; batchIdx < NumBatches; batchIdx++ {
 		// Gather episode rollouts.
@@ -62,8 +69,7 @@ func main() {
 		// Train on the rollouts.
 		judger := anypg.TotalJudger{Normalize: true}
 		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
-		tree := treeagent.BuildTree(treeagent.AllSamples(samples), actionSpace,
-			4, Depth)
+		tree := builder.Build(treeagent.AllSamples(samples))
 		roller.Policy.Add(tree, step)
 		step *= StepDecay
 	}

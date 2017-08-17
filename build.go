@@ -6,36 +6,53 @@ import (
 
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anyrl"
+	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 )
 
-// BuildTree builds a tree which tries to match the action
-// distributions of the samples.
-func BuildTree(data []Sample, actionSpace anyrl.LogProber, numFeatures,
-	maxDepth int) *Tree {
-	res := buildTree(gradientSamples(data, actionSpace), numFeatures, maxDepth)
+// A Builder builds decision trees to improve on Forest
+// policies.
+type Builder struct {
+	// NumFeatures is the number of observation features.
+	NumFeatures int
+
+	// MaxDepth is the maximum tree depth.
+	MaxDepth int
+
+	// ActionSpace is used to determine the probability of
+	// actions given the action parameters.
+	ActionSpace anyrl.LogProber
+
+	// Regularizer, if non-nil, is used to regularize the
+	// action distributions of the policy.
+	Regularizer anypg.Regularizer
+}
+
+// Build builds a tree based on the training data.
+func (b *Builder) Build(data []Sample) *Tree {
+	res := b.buildTree(b.gradientSamples(data), b.MaxDepth)
 	res.scaleParams(1 / float64(len(data)))
 	return res
 }
 
-func buildTree(data []*gradientSample, numFeatures, maxDepth int) *Tree {
+func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
-	} else if maxDepth == 0 || len(data) == 1 {
+	} else if depth == 0 || len(data) == 1 {
 		return &Tree{
 			Leaf:   true,
 			Params: vecToFloats(sumGradients(data)),
 		}
 	}
 
-	featureChan := make(chan int, numFeatures)
-	for i := 0; i < numFeatures; i++ {
+	featureChan := make(chan int, b.NumFeatures)
+	for i := 0; i < b.NumFeatures; i++ {
 		featureChan <- i
 	}
 	close(featureChan)
 
-	splitChan := make(chan *splitInfo, numFeatures)
+	splitChan := make(chan *splitInfo, b.NumFeatures)
 
 	var wg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -60,15 +77,34 @@ func buildTree(data []*gradientSample, numFeatures, maxDepth int) *Tree {
 
 	if bestSplit == nil {
 		// If no split can help, create a leaf.
-		return buildTree(data, numFeatures, 0)
+		return b.buildTree(data, 0)
 	}
 
 	return &Tree{
 		Feature:      bestSplit.Feature,
 		Threshold:    bestSplit.Threshold,
-		LessThan:     buildTree(bestSplit.LeftSamples, numFeatures, maxDepth-1),
-		GreaterEqual: buildTree(bestSplit.RightSamples, numFeatures, maxDepth-1),
+		LessThan:     b.buildTree(bestSplit.LeftSamples, depth-1),
+		GreaterEqual: b.buildTree(bestSplit.RightSamples, depth-1),
 	}
+}
+
+func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
+	res := make([]*gradientSample, len(samples))
+	for i, s := range samples {
+		params := &anydiff.Var{Vector: s.ActionParams()}
+		c := params.Vector.Creator()
+		obj := anydiff.Scale(
+			b.ActionSpace.LogProb(params, s.Action(), 1),
+			c.MakeNumeric(s.Advantage()),
+		)
+		if b.Regularizer != nil {
+			obj = anydiff.Add(obj, b.Regularizer.Regularize(params, 1))
+		}
+		grad := anydiff.NewGrad(params)
+		obj.Propagate(anyvec.Ones(c, 1), grad)
+		res[i] = &gradientSample{Sample: s, Gradient: grad[params]}
+	}
+	return res
 }
 
 // optimalSplit finds the optimal split for the given
@@ -148,22 +184,6 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 type gradientSample struct {
 	Sample
 	Gradient anyvec.Vector
-}
-
-func gradientSamples(samples []Sample, space anyrl.LogProber) []*gradientSample {
-	res := make([]*gradientSample, len(samples))
-	for i, s := range samples {
-		params := &anydiff.Var{Vector: s.ActionParams()}
-		c := params.Vector.Creator()
-		obj := anydiff.Scale(
-			space.LogProb(params, s.Action(), 1),
-			c.MakeNumeric(s.Advantage()),
-		)
-		grad := anydiff.NewGrad(params)
-		obj.Propagate(anyvec.Ones(c, 1), grad)
-		res[i] = &gradientSample{Sample: s, Gradient: grad[params]}
-	}
-	return res
 }
 
 func sumGradients(samples []*gradientSample) anyvec.Vector {
