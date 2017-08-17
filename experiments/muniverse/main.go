@@ -32,6 +32,7 @@ type Flags struct {
 	StepSize     float64
 	Discount     float64
 	EntropyReg   float64
+	Algorithm    string
 	SaveFile     string
 	Env          string
 	RecordDir    string
@@ -48,10 +49,12 @@ func main() {
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
+	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse' or 'sum')")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
 	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
 	flag.DurationVar(&flags.FrameTime, "frametime", time.Second/8, "time per frame")
+
 	flag.Parse()
 
 	if flags.Env == "" {
@@ -99,6 +102,14 @@ func main() {
 			Entropyer: actionSpace,
 			Coeff:     flags.EntropyReg,
 		},
+	}
+	switch flags.Algorithm {
+	case "mse":
+		builder.Algorithm = treeagent.MSEAlgorithm
+	case "sum":
+		builder.Algorithm = treeagent.SumAlgorithm
+	default:
+		essentials.Die("unknown algorithm:", flags.Algorithm)
 	}
 
 	// Train on a background goroutine so that we can
