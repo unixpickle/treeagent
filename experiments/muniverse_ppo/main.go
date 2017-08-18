@@ -144,7 +144,8 @@ func main() {
 			sampleChan := treeagent.Uint8Samples(numFeatures, rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
-				tree := ppo.Step(samples, policy)
+				tree, obj := ppo.Step(samples, policy)
+				log.Printf("step %d: objective=%v", i, obj)
 				policy.Add(tree, flags.StepSize)
 			}
 

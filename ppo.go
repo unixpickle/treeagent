@@ -24,19 +24,33 @@ type PPO struct {
 
 // Step performs a single step of PPO on the samples.
 //
-// It returns a tree which should be added to forest.
-func (p *PPO) Step(data []Sample, forest *Forest) *Tree {
+// It returns a tree approximation of the gradient.
+// It also returns the current value of the surrogate
+// objective, which the tree is designed to maximize.
+func (p *PPO) Step(data []Sample, forest *Forest) (step *Tree, obj anyvec.Numeric) {
 	var gradSamples []*gradientSample
+	var objSum anyvec.Numeric
 	for _, sample := range data {
+		obj, grad := p.objective(sample, forest)
 		gradSamples = append(gradSamples, &gradientSample{
 			Sample:   sample,
-			Gradient: p.gradient(sample, forest),
+			Gradient: grad,
 		})
+		if objSum == nil {
+			objSum = obj
+		} else {
+			objSum = grad.Creator().NumOps().Add(objSum, obj)
+		}
 	}
-	return p.Builder.buildTree(gradSamples, p.Builder.MaxDepth)
+	if objSum != nil {
+		c := gradSamples[0].Action().Creator()
+		objSum = c.NumOps().Div(objSum, c.MakeNumeric(float64(len(data))))
+	}
+	return p.Builder.buildTree(gradSamples, p.Builder.MaxDepth), objSum
 }
 
-func (p *PPO) gradient(sample Sample, forest *Forest) anyvec.Vector {
+func (p *PPO) objective(sample Sample, forest *Forest) (obj anyvec.Numeric,
+	grad anyvec.Vector) {
 	c := sample.Action().Creator()
 
 	// The vector in sample.ActionParams() may be out of
@@ -55,31 +69,34 @@ func (p *PPO) gradient(sample Sample, forest *Forest) anyvec.Vector {
 	)
 	newProb := p.Builder.ActionSpace.LogProb(outVar, sample.Action(), 1)
 	ratio := anydiff.Exp(anydiff.Sub(newProb, oldProb))
+	rawObj := anydiff.Scale(ratio, c.MakeNumeric(sample.Advantage()))
 
-	if p.shouldClip(sample, ratio) {
-		return c.MakeVector(sample.ActionParams().Len())
+	if p.shouldClip(rawObj, sample.Advantage()) {
+		return c.MakeNumeric(p.bestValue(sample.Advantage())),
+			c.MakeVector(sample.ActionParams().Len())
 	}
 
-	obj := anydiff.Scale(ratio, c.MakeNumeric(sample.Advantage()))
-	grad := anydiff.NewGrad(outVar)
-	obj.Propagate(anyvec.Ones(c, 1), grad)
-	return grad[outVar]
+	g := anydiff.NewGrad(outVar)
+	rawObj.Propagate(anyvec.Ones(c, 1), g)
+	return anyvec.Sum(rawObj.Output()), g[outVar]
 }
 
-func (p *PPO) shouldClip(sample Sample, ratio anydiff.Res) bool {
+func (p *PPO) shouldClip(rawObj anydiff.Res, adv float64) bool {
+	c := rawObj.Output().Creator()
+	ops := c.NumOps()
+	best := c.MakeNumeric(p.bestValue(adv))
+	actual := anyvec.Sum(rawObj.Output())
+	return ops.Greater(actual, best)
+}
+
+func (p *PPO) bestValue(adv float64) float64 {
 	epsilon := p.Epsilon
 	if epsilon == 0 {
 		epsilon = anypg.DefaultPPOEpsilon
 	}
-
-	c := ratio.Output().Creator()
-	ops := c.NumOps()
-	ratScalar := anyvec.Sum(ratio.Output())
-	if sample.Advantage() > 0 {
-		max := c.MakeNumeric(1 + epsilon)
-		return ops.Greater(ratScalar, max)
+	if adv < 0 {
+		return adv * (1 - epsilon)
 	} else {
-		min := c.MakeNumeric(0 - epsilon)
-		return ops.Less(ratScalar, min)
+		return adv * (1 + epsilon)
 	}
 }
