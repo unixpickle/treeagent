@@ -57,14 +57,11 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 	return RolloutSamples(r, differences)
 }
 
-// Train adds a tree to the value function based on the
-// training samples.
+// Train generates a tree to improve the value function.
 //
-// The advantages in the samples are used as the error
-// gradient.
-// If the samples originated from TrainingSamples, this is
-// guaranteed to be a correct assumption.
-func (j *Judger) Train(data []Sample, maxDepth int, weight float64) {
+// The advantages in the samples should come from
+// TrainingSamples.
+func (j *Judger) Train(data []Sample, maxDepth int) *Tree {
 	var gradSamples []*gradientSample
 	for _, sample := range data {
 		c := sample.Action().Creator()
@@ -74,6 +71,24 @@ func (j *Judger) Train(data []Sample, maxDepth int, weight float64) {
 			Gradient: vec,
 		})
 	}
-	tree := (&Builder{}).buildTree(gradSamples, maxDepth)
-	j.ValueFunc.Add(tree, weight)
+	builder := &Builder{
+		Algorithm: MSEAlgorithm,
+	}
+	return builder.buildTree(gradSamples, maxDepth)
+}
+
+// OptimalWeight returns the optimal weight for the tree
+// to improve the value function.
+//
+// The advantages in the samples should come from
+// TrainingSamples.
+func (j *Judger) OptimalWeight(data []Sample, t *Tree) float64 {
+	var numerator float64
+	var denominator float64
+	for _, sample := range data {
+		out := t.FindFeatureSource(sample)[0]
+		denominator += out * out
+		numerator += out * sample.Advantage()
+	}
+	return numerator / denominator
 }

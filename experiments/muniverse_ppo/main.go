@@ -31,6 +31,7 @@ type Flags struct {
 
 	Depth      int
 	StepSize   float64
+	ValStep    float64
 	Discount   float64
 	Lambda     float64
 	EntropyReg float64
@@ -56,6 +57,7 @@ func main() {
 	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
+	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
 	flag.Float64Var(&flags.Lambda, "lambda", 0.95, "GAE coefficient")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
@@ -163,9 +165,13 @@ func main() {
 				for _, sample := range samples {
 					totalError += math.Pow(sample.Advantage(), 2)
 				}
-				log.Printf("step %d: mse=%f", i, totalError/float64(len(samples)))
+				mse := totalError / float64(len(samples))
 
-				judger.Train(samples, flags.Depth, flags.StepSize)
+				tree := judger.Train(samples, flags.Depth)
+				step := judger.OptimalWeight(samples, tree) * flags.ValStep
+				valueFunc.Add(tree, step)
+
+				log.Printf("step %d: mse=%f step=%f", i, mse, step)
 			}
 
 			log.Println("Saving...")
