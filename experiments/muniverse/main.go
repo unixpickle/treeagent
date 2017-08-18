@@ -97,7 +97,6 @@ func main() {
 
 	// Setup a Builder for producing trees.
 	builder := &treeagent.Builder{
-		NumFeatures: NumFeatures(spec),
 		MaxDepth:    flags.Depth,
 		ActionSpace: actionSpace,
 		Regularizer: &anypg.EntropyReg{
@@ -134,10 +133,9 @@ func main() {
 
 			// Train on the rollouts.
 			log.Println("Training on batch...")
-			numFeatures := NumFeatures(spec)
 			advantages := judger.JudgeActions(r)
 			rawSamples := treeagent.RolloutSamples(r, advantages)
-			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
+			samples := treeagent.Uint8Samples(rawSamples)
 			tree := builder.Build(treeagent.AllSamples(samples))
 			if flags.SignOnly {
 				tree = treeagent.SignTree(tree)

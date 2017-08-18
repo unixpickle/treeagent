@@ -107,7 +107,6 @@ func main() {
 
 	ppo := &treeagent.PPO{
 		Builder: &treeagent.Builder{
-			NumFeatures: NumFeatures(spec),
 			MaxDepth:    flags.Depth,
 			ActionSpace: actionSpace,
 			Regularizer: &anypg.EntropyReg{
@@ -140,12 +139,10 @@ func main() {
 				r.Rewards.Mean(), math.Sqrt(r.Rewards.Variance()),
 				actionEntropy(creator, r))
 
-			numFeatures := NumFeatures(spec)
-
 			log.Println("Training policy...")
 			advantages := judger.JudgeActions(r)
 			rawSamples := treeagent.RolloutSamples(r, advantages)
-			sampleChan := treeagent.Uint8Samples(numFeatures, rawSamples)
+			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
 				tree, obj := ppo.Step(samples, policy)
@@ -159,7 +156,7 @@ func main() {
 			log.Println("Training value function...")
 			for i := 0; i < flags.Iters; i++ {
 				advSamples := judger.TrainingSamples(r)
-				sampleChan := treeagent.Uint8Samples(numFeatures, advSamples)
+				sampleChan := treeagent.Uint8Samples(advSamples)
 				samples := treeagent.AllSamples(sampleChan)
 
 				var totalError float64
@@ -168,7 +165,7 @@ func main() {
 				}
 				log.Printf("step %d: mse=%f", i, totalError/float64(len(samples)))
 
-				judger.Train(samples, numFeatures, flags.Depth, flags.StepSize)
+				judger.Train(samples, flags.Depth, flags.StepSize)
 			}
 
 			log.Println("Saving...")

@@ -33,10 +33,16 @@ func (f *Forest) Add(tree *Tree, weight float64) {
 // Apply runs the features through each Tree and produces
 // a parameter vector.
 func (f *Forest) Apply(features []float64) ActionParams {
+	return f.ApplyFeatureSource(sliceFeatureSource(features))
+}
+
+// ApplyFeatureSource is like Apply, but for a
+// FeatureSource.
+func (f *Forest) ApplyFeatureSource(list FeatureSource) ActionParams {
 	params := append(ActionParams{}, f.Base...)
 	for i, tree := range f.Trees {
 		w := f.Weights[i]
-		for j, x := range tree.Find(features) {
+		for j, x := range tree.FindFeatureSource(list) {
 			params[j] += x * w
 		}
 	}
@@ -77,14 +83,20 @@ type Tree struct {
 
 // Find finds the leaf parameters for the features.
 func (t *Tree) Find(features []float64) ActionParams {
+	return t.FindFeatureSource(sliceFeatureSource(features))
+}
+
+// FindFeatureSource is like Find, but for a
+// FeatureSource.
+func (t *Tree) FindFeatureSource(list FeatureSource) ActionParams {
 	if t.Leaf {
 		return t.Params
 	}
-	val := features[t.Feature]
+	val := list.Feature(t.Feature)
 	if val < t.Threshold {
-		return t.LessThan.Find(features)
+		return t.LessThan.FindFeatureSource(list)
 	} else {
-		return t.GreaterEqual.Find(features)
+		return t.GreaterEqual.FindFeatureSource(list)
 	}
 }
 
@@ -97,4 +109,14 @@ func (t *Tree) scaleParams(scale float64) {
 		t.LessThan.scaleParams(scale)
 		t.GreaterEqual.scaleParams(scale)
 	}
+}
+
+type sliceFeatureSource []float64
+
+func (s sliceFeatureSource) NumFeatures() int {
+	return len(s)
+}
+
+func (s sliceFeatureSource) Feature(i int) float64 {
+	return s[i]
 }

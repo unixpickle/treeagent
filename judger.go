@@ -53,7 +53,7 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 	// we set lambda to 1.
 	j1 := *j
 	j1.Lambda = 1
-	differences := j1.JudgeActions(r)
+	differences := j.JudgeActions(r)
 	return RolloutSamples(r, differences)
 }
 
@@ -64,7 +64,7 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 // gradient.
 // If the samples originated from TrainingSamples, this is
 // guaranteed to be a correct assumption.
-func (j *Judger) Train(data []Sample, numFeatures int, maxDepth int, weight float64) {
+func (j *Judger) Train(data []Sample, maxDepth int, weight float64) {
 	var gradSamples []*gradientSample
 	for _, sample := range data {
 		c := sample.Action().Creator()
@@ -74,10 +74,6 @@ func (j *Judger) Train(data []Sample, numFeatures int, maxDepth int, weight floa
 			Gradient: vec,
 		})
 	}
-	builder := &Builder{
-		NumFeatures: numFeatures,
-		Algorithm:   MSEAlgorithm,
-	}
-	tree := builder.buildTree(gradSamples, maxDepth)
+	tree := (&Builder{}).buildTree(gradSamples, maxDepth)
 	j.ValueFunc.Add(tree, weight)
 }

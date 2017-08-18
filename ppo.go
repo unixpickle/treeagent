@@ -53,13 +53,7 @@ func (p *PPO) objective(sample Sample, forest *Forest) (obj anyvec.Numeric,
 	grad anyvec.Vector) {
 	c := sample.Action().Creator()
 
-	// The vector in sample.ActionParams() may be out of
-	// date if the forest was trained more.
-	features := make([]float64, p.Builder.NumFeatures)
-	for i := range features {
-		features[i] = sample.Feature(i)
-	}
-	forestOut := forest.Apply(features)
+	forestOut := forest.ApplyFeatureSource(sample)
 	outVar := anydiff.NewVar(c.MakeVectorData(c.MakeNumericList(forestOut)))
 
 	oldProb := p.Builder.ActionSpace.LogProb(

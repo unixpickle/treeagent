@@ -66,7 +66,6 @@ func BenchmarkBuild(b *testing.B) {
 	}
 
 	builder := &Builder{
-		NumFeatures: numBenchmarkFeatures,
 		MaxDepth:    benchmarkDepth,
 		ActionSpace: anyrl.Softmax{},
 	}

@@ -45,7 +45,6 @@ func main() {
 
 	// Setup a way to build trees.
 	builder := &treeagent.Builder{
-		NumFeatures: 4,
 		MaxDepth:    Depth,
 		ActionSpace: actionSpace,
 		Algorithm:   treeagent.MSEAlgorithm,

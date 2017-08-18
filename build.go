@@ -35,9 +35,6 @@ const (
 // A Builder builds decision trees to improve on Forest
 // policies.
 type Builder struct {
-	// NumFeatures is the number of observation features.
-	NumFeatures int
-
 	// MaxDepth is the maximum tree depth.
 	MaxDepth int
 
@@ -72,13 +69,15 @@ func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 		}
 	}
 
-	featureChan := make(chan int, b.NumFeatures)
-	for i := 0; i < b.NumFeatures; i++ {
+	numFeats := data[0].NumFeatures()
+
+	featureChan := make(chan int, numFeats)
+	for i := 0; i < numFeats; i++ {
 		featureChan <- i
 	}
 	close(featureChan)
 
-	splitChan := make(chan *splitInfo, b.NumFeatures)
+	splitChan := make(chan *splitInfo, numFeats)
 
 	var wg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {

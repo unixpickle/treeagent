@@ -55,7 +55,6 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 
 	// Setup a way to build trees.
 	builder := &treeagent.Builder{
-		NumFeatures: 4,
 		MaxDepth:    depth,
 		ActionSpace: anyrl.Softmax{},
 	}

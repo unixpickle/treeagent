@@ -5,12 +5,18 @@ import (
 	"github.com/unixpickle/anyvec"
 )
 
+// A FeatureSource is a list of numerical features.
+type FeatureSource interface {
+	Feature(idx int) float64
+}
+
 // Sample is a training sample for building a tree.
 //
 // Each Sample provides information about a single
 // timestep in an episode.
 type Sample interface {
-	Feature(idx int) float64
+	FeatureSource
+	NumFeatures() int
 	Action() anyvec.Vector
 	ActionParams() anyvec.Vector
 	Advantage() float64
@@ -79,18 +85,19 @@ func RolloutSamples(r *anyrl.RolloutSet, advantages anyrl.Rewards) <-chan Sample
 // resource leak.
 // Doing so will automatically read the incoming channel
 // in its entirety.
-func Uint8Samples(numFeatures int, incoming <-chan Sample) <-chan Sample {
+func Uint8Samples(incoming <-chan Sample) <-chan Sample {
 	res := make(chan Sample, 1)
 	go func() {
 		defer close(res)
 		for in := range incoming {
+			dim := in.NumFeatures()
 			sample := &uint8Sample{
-				features:     make([]uint8, numFeatures),
+				features:     make([]uint8, dim),
 				action:       in.Action(),
 				actionParams: in.ActionParams(),
 				advantage:    in.Advantage(),
 			}
-			for i := 0; i < numFeatures; i++ {
+			for i := 0; i < dim; i++ {
 				sample.features[i] = uint8(in.Feature(i))
 			}
 			res <- sample
@@ -120,6 +127,10 @@ func (m *memorySample) Feature(idx int) float64 {
 	return m.features[idx]
 }
 
+func (m *memorySample) NumFeatures() int {
+	return len(m.features)
+}
+
 func (m *memorySample) Action() anyvec.Vector {
 	return m.action
 }
@@ -141,6 +152,10 @@ type uint8Sample struct {
 
 func (u *uint8Sample) Feature(idx int) float64 {
 	return float64(u.features[idx])
+}
+
+func (u *uint8Sample) NumFeatures() int {
+	return len(u.features)
 }
 
 func (u *uint8Sample) Action() anyvec.Vector {
