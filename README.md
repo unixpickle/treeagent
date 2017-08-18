@@ -10,3 +10,19 @@ I've had a few different ideas for training decision trees as policies. These id
  * [dist-matching](https://github.com/unixpickle/treeagent/tree/dist-matching) - update action distributions gradually and train trees to match the new distributions. Doesn't quite solve CartPole-v0; solves µniverse's Knightower-v0. Doesn't improve on µniverse's PenguinSkip-v0.
  * [greedy-forest](https://github.com/unixpickle/treeagent/tree/greedy-forest) - build up a decision forest by adding a "greedy" tree policy at each training iteration. Doesn't quite converge on CartPole-v0; improves on µniverse's PenguinSkip-v0, but only to a mean reward of ~11 (up from ~8).
  * **this branch:** build decision forests with an algorithm akin to gradient boosting. Each tree tries to match the policy gradient estimator as well as possible. Solves CartPole-v0. *More results pending.*
+
+# Log
+
+Here is a high-level log of what I've been trying and what experiments I've run:
+
+ * Implemented policy gradient boosting. Trees split to maximize gradient-mean dot products. Worked alright on CartPole-v0.
+ * Used sum-of-gradients instead of mean-of-gradients for the tree. Made CartPole-v0 converge must faster.
+ * Trained on PenguinSkip-v0 overnight: ~200 iterations, batch=512, step=20, depth=8. Got up to mean reward of ~50. Convergence at this point was very slow.
+   * Tried reducing step size, increasing depth and batch size, etc. Never got past mean reward of ~53.
+ * Added MSE-based algorithm to match policy gradient in the regression sense.
+ * MSE-based algorithm appeared to perform worse than sum algorithm on PenguinSkip-v0 (for same step size, batch size, depth). Tried a few different step sizes; same result.
+ * Added PPO-like algorithm with value function approximation.
+ * Added back the original mean-gradient algorithm, and this time was able to get it to perform quite well on CartPole-v0.
+ * Ran PPO overnight on PenguinSkip-v0. Used mean-gradient algorithm with depth=4, step=0.1, iters=4, batch=128. By morning, mean reward had only increased to ~13.
+ * Quickly went back and tried regular policy gradient boosting (no PPO) with mean-gradients, a large step size (20), and a batch size of 128. Realized that some leaves had huge values (e.g. 35) while other leaves had tiny values (e.g. 0.001). With a step size of 20, this would have saturated the softmax function. Nonetheless, the mean entropy only seemed to decrease gradually, like I've already been observing. I realized at this point that, during all these experiments, a small fraction of samples were probably being fully saturated, while others weren't getting any help at all.
+ * Implemented an RMSProp-like algorithm: turn leaf values into their sign. This should prevent any samples from being hugely saturated at once.
