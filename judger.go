@@ -53,7 +53,7 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 	// we set lambda to 1.
 	j1 := *j
 	j1.Lambda = 1
-	differences := j.JudgeActions(r)
+	differences := j1.JudgeActions(r)
 	return RolloutSamples(r, differences)
 }
 
