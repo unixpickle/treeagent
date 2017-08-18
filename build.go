@@ -23,6 +23,10 @@ const (
 	// contain gradient sums for the repersented samples.
 	SumAlgorithm TreeAlgorithm = iota
 
+	// MeanAlgorithm is similar to SumAlgorithm, except
+	// that gradients are averaged instead of summed.
+	MeanAlgorithm
+
 	// MSEAlgorithm constructs a tree by minimizing
 	// mean-squared error over gradients.
 	MSEAlgorithm
@@ -164,6 +168,8 @@ func (b *Builder) splitTracker() splitTracker {
 	switch b.Algorithm {
 	case SumAlgorithm:
 		return &sumTracker{}
+	case MeanAlgorithm:
+		return &meanTracker{}
 	case MSEAlgorithm:
 		return &mseTracker{}
 	default:
@@ -175,7 +181,7 @@ func (b *Builder) leafParams(data []*gradientSample) anyvec.Vector {
 	switch b.Algorithm {
 	case SumAlgorithm:
 		return sumGradients(data)
-	case MSEAlgorithm:
+	case MeanAlgorithm, MSEAlgorithm:
 		sum := sumGradients(data)
 		sum.Scale(sum.Creator().MakeNumeric(1 / float64(len(data))))
 		return sum
@@ -269,6 +275,38 @@ func (s *sumTracker) Quality() float64 {
 	for _, vec := range []anyvec.Vector{s.leftSum, s.rightSum} {
 		sum += numToFloat(vec.Dot(vec))
 	}
+	return sum
+}
+
+// A meanTracker is a splitTracker for MeanAlgorithm.
+type meanTracker struct {
+	sumTracker sumTracker
+	leftCount  int
+	rightCount int
+}
+
+func (m *meanTracker) Reset(rightSamples []*gradientSample) {
+	m.sumTracker.Reset(rightSamples)
+	m.leftCount = 0
+	m.rightCount = len(rightSamples)
+}
+
+func (m *meanTracker) MoveToLeft(sample *gradientSample) {
+	m.sumTracker.MoveToLeft(sample)
+	m.leftCount++
+	m.rightCount--
+}
+
+func (m *meanTracker) Quality() float64 {
+	s := &m.sumTracker
+	sums := []anyvec.Vector{s.leftSum, s.rightSum}
+	counts := []int{m.leftCount, m.rightCount}
+
+	var sum float64
+	for i, vec := range sums {
+		sum += numToFloat(vec.Dot(vec)) / float64(counts[i])
+	}
+
 	return sum
 }
 

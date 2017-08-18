@@ -60,7 +60,7 @@ func main() {
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
-	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse' or 'sum')")
+	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse', 'sum', 'mean')")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
 	flag.StringVar(&flags.CriticFile, "critic", "critic.json", "file for saved value function")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
@@ -116,6 +116,8 @@ func main() {
 	}
 
 	switch flags.Algorithm {
+	case "mean":
+		ppo.Builder.Algorithm = treeagent.MeanAlgorithm
 	case "mse":
 		ppo.Builder.Algorithm = treeagent.MSEAlgorithm
 	case "sum":
