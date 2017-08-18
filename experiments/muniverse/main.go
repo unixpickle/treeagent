@@ -32,6 +32,7 @@ type Flags struct {
 	StepSize     float64
 	Discount     float64
 	EntropyReg   float64
+	SignOnly     bool
 	Algorithm    string
 	SaveFile     string
 	Env          string
@@ -49,6 +50,7 @@ func main() {
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
+	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse', 'sum', 'mean')")
 	flag.StringVar(&flags.SaveFile, "out", "policy.json", "file for saved policy")
 	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
@@ -137,6 +139,9 @@ func main() {
 			rawSamples := treeagent.RolloutSamples(r, advantages)
 			samples := treeagent.Uint8Samples(numFeatures, rawSamples)
 			tree := builder.Build(treeagent.AllSamples(samples))
+			if flags.SignOnly {
+				tree = treeagent.SignTree(tree)
+			}
 			roller.Policy.Add(tree, flags.StepSize)
 
 			// Save the new policy.

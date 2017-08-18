@@ -35,6 +35,7 @@ type Flags struct {
 	Lambda     float64
 	EntropyReg float64
 	Epsilon    float64
+	SignOnly   bool
 	Iters      int
 
 	Algorithm string
@@ -59,6 +60,7 @@ func main() {
 	flag.Float64Var(&flags.Lambda, "lambda", 0.95, "GAE coefficient")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
+	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
 	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse', 'sum', 'mean')")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
@@ -148,6 +150,9 @@ func main() {
 			for i := 0; i < flags.Iters; i++ {
 				tree, obj := ppo.Step(samples, policy)
 				log.Printf("step %d: objective=%v", i, obj)
+				if flags.SignOnly {
+					tree = treeagent.SignTree(tree)
+				}
 				policy.Add(tree, flags.StepSize)
 			}
 
