@@ -72,13 +72,19 @@ func (p *PPO) objective(sample Sample, forest *Forest) (obj anyvec.Numeric,
 	rawObj := anydiff.Scale(ratio, c.MakeNumeric(sample.Advantage()))
 
 	if p.shouldClip(rawObj, sample.Advantage()) {
-		return c.MakeNumeric(p.bestValue(sample.Advantage())),
-			c.MakeVector(sample.ActionParams().Len())
+		best := p.bestValue(sample.Advantage())
+		rawObj = anydiff.NewConst(c.MakeVectorData(c.MakeNumericList([]float64{best})))
+	}
+
+	obj = anyvec.Sum(rawObj.Output())
+
+	if p.Builder.Regularizer != nil {
+		rawObj = anydiff.Add(rawObj, p.Builder.Regularizer.Regularize(outVar, 1))
 	}
 
 	g := anydiff.NewGrad(outVar)
 	rawObj.Propagate(anyvec.Ones(c, 1), g)
-	return anyvec.Sum(rawObj.Output()), g[outVar]
+	return obj, g[outVar]
 }
 
 func (p *PPO) shouldClip(rawObj anydiff.Res, adv float64) bool {
