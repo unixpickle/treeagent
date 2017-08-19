@@ -14,6 +14,12 @@ import (
 	"github.com/unixpickle/treeagent"
 )
 
+type ActionSpace interface {
+	anyrl.LogProber
+	anyrl.Sampler
+	anyrl.Entropyer
+}
+
 // NumFeaturesMuniverse returns the number of observation
 // features for the environment (after downsampling).
 func NumFeaturesMuniverse(e *muniverse.EnvSpec) int {
@@ -26,6 +32,12 @@ func NumFeaturesMuniverse(e *muniverse.EnvSpec) int {
 		height++
 	}
 	return width * height
+}
+
+// ActionSpaceMuniverse returns the action space and the
+// number of actions for a muniverse environment.
+func ActionSpaceMuniverse(e *muniverse.EnvSpec) (ActionSpace, int) {
+	return anyrl.Softmax{}, len(e.KeyWhitelist) + 1
 }
 
 // GatherRolloutsMuniverse produces n rollouts using the
