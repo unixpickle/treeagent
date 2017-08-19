@@ -10,21 +10,22 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
-	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
+	"github.com/unixpickle/treeagent/experiments"
 )
 
 type Flags struct {
+	EnvFlags  experiments.MuniverseEnvFlags
+	Algorithm experiments.AlgorithmFlag
+
 	BatchSize    int
 	ParallelEnvs int
 	LogInterval  int
@@ -39,18 +40,14 @@ type Flags struct {
 	SignOnly   bool
 	Iters      int
 
-	Algorithm string
-
 	ActorFile  string
 	CriticFile string
-
-	Env       string
-	RecordDir string
-	FrameTime time.Duration
 }
 
 func main() {
 	flags := &Flags{}
+	flags.EnvFlags.AddFlags()
+	flags.Algorithm.AddFlag()
 	flag.IntVar(&flags.BatchSize, "batch", 128, "rollout batch size")
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
@@ -64,38 +61,24 @@ func main() {
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
-	flag.StringVar(&flags.Algorithm, "algo", "mse", "tree algorithm ('mse', 'sum', 'mean')")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
 	flag.StringVar(&flags.CriticFile, "critic", "critic.json", "file for saved value function")
-	flag.StringVar(&flags.Env, "env", "", "environment (e.g. Knightower-v0)")
-	flag.StringVar(&flags.RecordDir, "record", "", "directory to save recordings")
-	flag.DurationVar(&flags.FrameTime, "frametime", time.Second/8, "time per frame")
-
 	flag.Parse()
-
-	if flags.Env == "" {
-		essentials.Die("Missing -env flag. See -help.")
-	}
-	spec := muniverse.SpecForName(flags.Env)
-	if spec == nil {
-		essentials.Die("unknown environment:", flags.Env)
-	}
 
 	log.Println("Run with arguments:", os.Args[1:])
 
 	creator := anyvec32.CurrentCreator()
+
+	log.Println("Creating environments...")
+	envs, err := experiments.NewMuniverseEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
+	must(err)
+
 	actionSpace := anyrl.Softmax{}
-
 	policy, valueFunc := loadOrCreateForests(flags)
-
 	roller := &treeagent.Roller{
 		Policy:      policy,
 		Creator:     creator,
 		ActionSpace: actionSpace,
-
-		// Compress the input frames as we store them.
-		// If we used a ReferenceTape for the input, the
-		// program would use way too much memory.
 		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
 			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
 		},
@@ -115,18 +98,8 @@ func main() {
 				Entropyer: actionSpace,
 				Coeff:     flags.EntropyReg,
 			},
+			Algorithm: flags.Algorithm.Algorithm,
 		},
-	}
-
-	switch flags.Algorithm {
-	case "mean":
-		ppo.Builder.Algorithm = treeagent.MeanAlgorithm
-	case "mse":
-		ppo.Builder.Algorithm = treeagent.MSEAlgorithm
-	case "sum":
-		ppo.Builder.Algorithm = treeagent.SumAlgorithm
-	default:
-		essentials.Die("unknown algorithm:", flags.Algorithm)
 	}
 
 	var trainLock sync.Mutex
@@ -134,16 +107,17 @@ func main() {
 		for batchIdx := 0; true; batchIdx++ {
 			log.Println("Gathering batch of experience...")
 
-			rollouts := gatherRollouts(flags, roller)
-			r := anyrl.PackRolloutSets(rollouts)
+			rollouts, entropy, err := experiments.GatherRolloutsMuniverse(roller, envs,
+				flags.BatchSize)
+			must(err)
 
 			log.Printf("batch %d: mean=%f stddev=%f entropy=%f", batchIdx,
-				r.Rewards.Mean(), math.Sqrt(r.Rewards.Variance()),
-				actionEntropy(creator, r))
+				rollouts.Rewards.Mean(), math.Sqrt(rollouts.Rewards.Variance()),
+				entropy)
 
 			log.Println("Training policy...")
-			advantages := judger.JudgeActions(r)
-			rawSamples := treeagent.RolloutSamples(r, advantages)
+			advantages := judger.JudgeActions(rollouts)
+			rawSamples := treeagent.RolloutSamples(rollouts, advantages)
 			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
@@ -157,7 +131,7 @@ func main() {
 
 			log.Println("Training value function...")
 			for i := 0; i < flags.Iters; i++ {
-				advSamples := judger.TrainingSamples(r)
+				advSamples := judger.TrainingSamples(rollouts)
 				sampleChan := treeagent.Uint8Samples(advSamples)
 				samples := treeagent.AllSamples(sampleChan)
 
@@ -195,69 +169,8 @@ func main() {
 	trainLock.Lock()
 }
 
-func gatherRollouts(flags *Flags, roller *treeagent.Roller) []*anyrl.RolloutSet {
-	resChan := make(chan *anyrl.RolloutSet, flags.BatchSize)
-
-	requests := make(chan struct{}, flags.BatchSize)
-	for i := 0; i < flags.BatchSize; i++ {
-		requests <- struct{}{}
-	}
-	close(requests)
-
-	var wg sync.WaitGroup
-	for i := 0; i < flags.ParallelEnvs; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			spec := muniverse.SpecForName(flags.Env)
-			if spec == nil {
-				panic("environment not found")
-			}
-			env, err := muniverse.NewEnv(spec)
-			must(err)
-
-			if flags.RecordDir != "" {
-				env = muniverse.RecordEnv(env, flags.RecordDir)
-			}
-
-			defer env.Close()
-
-			preproc := &Env{
-				Env:         env,
-				Creator:     roller.Creator,
-				TimePerStep: flags.FrameTime,
-			}
-			for _ = range requests {
-				rollout, err := roller.Rollout(preproc)
-				must(err)
-				resChan <- rollout
-			}
-		}()
-	}
-
-	go func() {
-		wg.Wait()
-		close(resChan)
-	}()
-
-	var res []*anyrl.RolloutSet
-	var batchRewardSum float64
-	var numBatchReward int
-	for item := range resChan {
-		res = append(res, item)
-		numBatchReward++
-		batchRewardSum += item.Rewards.Mean()
-		if numBatchReward == flags.LogInterval || len(res) == flags.BatchSize {
-			log.Printf("sub_mean=%f", batchRewardSum/float64(numBatchReward))
-			numBatchReward = 0
-			batchRewardSum = 0
-		}
-	}
-	return res
-}
-
 func loadOrCreateForests(flags *Flags) (actor, critic *treeagent.Forest) {
-	numActions := 1 + len(muniverse.SpecForName(flags.Env).KeyWhitelist)
+	numActions := 1 + len(muniverse.SpecForName(flags.EnvFlags.Name).KeyWhitelist)
 	actor = loadOrCreateForest(flags, flags.ActorFile, numActions)
 	critic = loadOrCreateForest(flags, flags.CriticFile, 1)
 	return
@@ -273,13 +186,6 @@ func loadOrCreateForest(flags *Flags, path string, dims int) *treeagent.Forest {
 	must(json.Unmarshal(data, &res))
 	log.Println("Loaded forest from:", path)
 	return res
-}
-
-func actionEntropy(c anyvec.Creator, r *anyrl.RolloutSet) anyvec.Numeric {
-	outSeq := lazyseq.TapeRereader(c, r.AgentOuts)
-	entropyer := anyrl.Softmax{}
-	entropies := lazyseq.Map(outSeq, entropyer.Entropy)
-	return anyvec.Sum(lazyseq.Mean(entropies).Output())
 }
 
 func must(err error) {
