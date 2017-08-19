@@ -27,7 +27,8 @@ type Flags struct {
 	NumParallel int
 	Batch       int
 
-	Depth int
+	Depth     int
+	ValueFunc bool
 
 	DumpLeaves bool
 }
@@ -41,6 +42,7 @@ func main() {
 		"environments to run in parallel")
 	flag.IntVar(&flags.Batch, "batch", 128, "number of rollouts to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
+	flag.BoolVar(&flags.ValueFunc, "valfunc", false, "train a value function, not a policy")
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
 	flag.Parse()
 
@@ -77,17 +79,30 @@ func main() {
 
 	algos := []treeagent.TreeAlgorithm{treeagent.SumAlgorithm, treeagent.MeanAlgorithm,
 		treeagent.MSEAlgorithm}
+	if flags.ValueFunc {
+		algos = []treeagent.TreeAlgorithm{treeagent.MSEAlgorithm}
+	}
 	for _, algo := range algos {
 		PrintSeparator()
 		name := (&experiments.AlgorithmFlag{Algorithm: algo}).String()
 		fmt.Println("Algorithm:", name)
 
-		builder := &treeagent.Builder{
-			MaxDepth:    flags.Depth,
-			ActionSpace: actionSpace,
-			Algorithm:   algo,
+		var tree *treeagent.Tree
+		if flags.ValueFunc {
+			judger := &treeagent.Judger{
+				ValueFunc: treeagent.NewForest(1),
+				Discount:  flags.Discount,
+			}
+			tree = judger.Train(samples, flags.Depth)
+		} else {
+			builder := &treeagent.Builder{
+				MaxDepth:    flags.Depth,
+				ActionSpace: actionSpace,
+				Algorithm:   algo,
+			}
+			tree = builder.Build(samples)
 		}
-		TreeAnalysis(builder.Build(samples), samples, &flags)
+		TreeAnalysis(tree, samples, &flags)
 	}
 	PrintSeparator()
 }
