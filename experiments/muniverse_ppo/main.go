@@ -100,6 +100,7 @@ func main() {
 			},
 			Algorithm: flags.Algorithm.Algorithm,
 		},
+		Epsilon: flags.Epsilon,
 	}
 
 	var trainLock sync.Mutex
