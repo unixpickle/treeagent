@@ -114,20 +114,38 @@ func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 }
 
 func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
+	paramVecs := make([]anyvec.Vector, len(samples))
+	outVecs := make([]anyvec.Vector, len(samples))
+	advantages := make([]float64, len(samples))
+	for i, s := range samples {
+		paramVecs[i] = s.ActionParams()
+		outVecs[i] = s.Action()
+		advantages[i] = s.Advantage()
+	}
+
+	c := paramVecs[0].Creator()
+	params := &anydiff.Var{Vector: c.Concat(paramVecs...)}
+	outs := c.Concat(outVecs...)
+	advs := anydiff.NewConst(c.MakeVectorData(c.MakeNumericList(advantages)))
+	probs := b.ActionSpace.LogProb(params, outs, len(samples))
+	obj := anydiff.Sum(anydiff.Mul(probs, advs))
+
+	if b.Regularizer != nil {
+		reg := b.Regularizer.Regularize(params, len(samples))
+		obj = anydiff.Add(obj, anydiff.Sum(reg))
+	}
+
+	grad := anydiff.NewGrad(params)
+	obj.Propagate(anyvec.Ones(c, 1), grad)
+	gradVec := grad[params]
+	gradSize := gradVec.Len() / len(samples)
+
 	res := make([]*gradientSample, len(samples))
 	for i, s := range samples {
-		params := &anydiff.Var{Vector: s.ActionParams()}
-		c := params.Vector.Creator()
-		obj := anydiff.Scale(
-			b.ActionSpace.LogProb(params, s.Action(), 1),
-			c.MakeNumeric(s.Advantage()),
-		)
-		if b.Regularizer != nil {
-			obj = anydiff.Add(obj, b.Regularizer.Regularize(params, 1))
+		res[i] = &gradientSample{
+			Sample:   s,
+			Gradient: gradVec.Slice(i*gradSize, (i+1)*gradSize),
 		}
-		grad := anydiff.NewGrad(params)
-		obj.Propagate(anyvec.Ones(c, 1), grad)
-		res[i] = &gradientSample{Sample: s, Gradient: grad[params]}
 	}
 	return res
 }
