@@ -24,6 +24,12 @@ func (a *AlgorithmFlag) String() string {
 		return "mean"
 	case treeagent.MSEAlgorithm:
 		return "mse"
+	case treeagent.BalancedSumAlgorithm:
+		return "balancedsum"
+	case treeagent.StddevAlgorithm:
+		return "stddev"
+	case treeagent.SignAlgorithm:
+		return "sign"
 	default:
 		return ""
 	}
@@ -38,6 +44,12 @@ func (a *AlgorithmFlag) Set(s string) error {
 		a.Algorithm = treeagent.MeanAlgorithm
 	case "mse":
 		a.Algorithm = treeagent.MSEAlgorithm
+	case "balancedsum":
+		a.Algorithm = treeagent.BalancedSumAlgorithm
+	case "stddev":
+		a.Algorithm = treeagent.StddevAlgorithm
+	case "sign":
+		a.Algorithm = treeagent.SignAlgorithm
 	default:
 		return errors.New("unknown algorithm: " + s)
 	}
@@ -47,7 +59,7 @@ func (a *AlgorithmFlag) Set(s string) error {
 // AddFlag adds the flag to the flag package's global set
 // of flags.
 func (a *AlgorithmFlag) AddFlag() {
-	flag.Var(a, "algo", "algorithm for tree building (sum, mse, or mean)")
+	flag.Var(a, "algo", "splitting heuristic (sum, mse, mean, balancedsum, stddev, sign)")
 }
 
 // MuniverseEnvFlags holds various parameters for creating

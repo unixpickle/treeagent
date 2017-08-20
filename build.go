@@ -1,6 +1,7 @@
 package treeagent
 
 import (
+	"math"
 	"runtime"
 	"sync"
 
@@ -30,6 +31,21 @@ const (
 	// MSEAlgorithm constructs a tree by minimizing
 	// mean-squared error over gradients.
 	MSEAlgorithm
+
+	// BalancedSumAlgorithm is similar to SumAlgorithm,
+	// but splits are biased towards balanced trees.
+	BalancedSumAlgorithm
+
+	// StddevAlgorithm has the same objective as MSE and
+	// mean, but it uses a splitting criteria based on
+	// gradient standard deviations.
+	StddevAlgorithm
+
+	// SignAlgorithm maximizes the dot products between
+	// sums of gradients and the sums' sign.
+	// The resulting leaf parameters have values 0, 1, or
+	// -1.
+	SignAlgorithm
 )
 
 // A Builder builds decision trees to improve on Forest
@@ -63,8 +79,10 @@ func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 			Leaf:   true,
 			Params: vecToFloats(b.leafParams(data)),
 		}
-		if b.Algorithm == SumAlgorithm {
+		if b.Algorithm == SumAlgorithm || b.Algorithm == BalancedSumAlgorithm {
 			res.scaleParams(1 / float64(len(data)))
+		} else if b.Algorithm == SignAlgorithm {
+			res = SignTree(res)
 		}
 		return res
 	}
@@ -177,6 +195,12 @@ func (b *Builder) splitTracker() splitTracker {
 		return &meanTracker{}
 	case MSEAlgorithm:
 		return &mseTracker{}
+	case BalancedSumAlgorithm:
+		return &balancedSumTracker{}
+	case StddevAlgorithm:
+		return &stddevTracker{}
+	case SignAlgorithm:
+		return &signTracker{}
 	default:
 		panic("unknown tree algorithm")
 	}
@@ -184,9 +208,9 @@ func (b *Builder) splitTracker() splitTracker {
 
 func (b *Builder) leafParams(data []*gradientSample) anyvec.Vector {
 	switch b.Algorithm {
-	case SumAlgorithm:
+	case SumAlgorithm, BalancedSumAlgorithm, SignAlgorithm:
 		return sumGradients(data)
-	case MeanAlgorithm, MSEAlgorithm:
+	case MeanAlgorithm, MSEAlgorithm, StddevAlgorithm:
 		sum := sumGradients(data)
 		sum.Scale(sum.Creator().MakeNumeric(1 / float64(len(data))))
 		return sum
@@ -302,6 +326,30 @@ func (s *sumTracker) Quality() float64 {
 	return sum
 }
 
+// A balancedSumTracker is a splitTracker for
+// BalancedSumAlgorithm.
+type balancedSumTracker struct {
+	sumTracker sumTracker
+	leftCount  int
+	rightCount int
+}
+
+func (b *balancedSumTracker) Reset(rightSamples []*gradientSample) {
+	b.sumTracker.Reset(rightSamples)
+	b.leftCount = 0
+	b.rightCount = len(rightSamples)
+}
+
+func (b *balancedSumTracker) MoveToLeft(sample *gradientSample) {
+	b.sumTracker.MoveToLeft(sample)
+	b.leftCount++
+	b.rightCount--
+}
+
+func (b *balancedSumTracker) Quality() float64 {
+	return b.sumTracker.Quality() * float64(b.leftCount*b.rightCount)
+}
+
 // A meanTracker is a splitTracker for MeanAlgorithm.
 type meanTracker struct {
 	sumTracker sumTracker
@@ -364,6 +412,11 @@ func (m *mseTracker) MoveToLeft(sample *gradientSample) {
 }
 
 func (m *mseTracker) Quality() float64 {
+	left, right := m.leftRightErrors()
+	return -(left + right)
+}
+
+func (m *mseTracker) leftRightErrors() (left, right float64) {
 	// The minimal MSE is equivalent to
 	//
 	//     Var(x) = E[X^2] - E^2[X]
@@ -377,13 +430,36 @@ func (m *mseTracker) Quality() float64 {
 	sqSums := []float64{m.leftSquares, m.rightSquares}
 	counts := []int{m.leftCount, m.rightCount}
 
-	var totalError float64
+	reses := make([]float64, 2)
 	for i, sum := range sums {
 		n := float64(counts[i])
 		if n == 0 {
 			continue
 		}
-		totalError += sqSums[i] - numToFloat(sum.Dot(sum))/n
+		reses[i] = sqSums[i] - numToFloat(sum.Dot(sum))/n
 	}
-	return -totalError
+
+	return reses[0], reses[1]
+}
+
+// stddevTracker is a splitTracker for StddevAlgorithm.
+type stddevTracker struct {
+	mseTracker
+}
+
+func (s *stddevTracker) Quality() float64 {
+	// Equivalent to minimizing N1*stddev1 + N2*stddev2
+	left, right := s.leftRightErrors()
+	return -(math.Sqrt(float64(s.leftCount)*left) +
+		math.Sqrt(float64(s.rightCount)*right))
+}
+
+// signTracker is a splitTracker for SignAlgorithm.
+type signTracker struct {
+	sumTracker
+}
+
+func (s *signTracker) Quality() float64 {
+	return numToFloat(anyvec.AbsSum(s.leftSum)) +
+		numToFloat(anyvec.AbsSum(s.rightSum))
 }

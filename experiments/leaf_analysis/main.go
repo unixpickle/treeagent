@@ -77,8 +77,14 @@ func main() {
 	rawSamples := treeagent.RolloutSamples(rollouts, advs)
 	samples := treeagent.AllSamples(treeagent.Uint8Samples(rawSamples))
 
-	algos := []treeagent.TreeAlgorithm{treeagent.SumAlgorithm, treeagent.MeanAlgorithm,
-		treeagent.MSEAlgorithm}
+	algos := []treeagent.TreeAlgorithm{
+		treeagent.SumAlgorithm,
+		treeagent.MeanAlgorithm,
+		treeagent.MSEAlgorithm,
+		treeagent.BalancedSumAlgorithm,
+		treeagent.StddevAlgorithm,
+		treeagent.SignAlgorithm,
+	}
 	if flags.ValueFunc {
 		algos = []treeagent.TreeAlgorithm{treeagent.MSEAlgorithm}
 	}
