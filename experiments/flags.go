@@ -62,24 +62,27 @@ func (a *AlgorithmFlag) AddFlag() {
 	flag.Var(a, "algo", "splitting heuristic (sum, mse, mean, balancedsum, stddev, sign)")
 }
 
-// MuniverseEnvFlags holds various parameters for creating
-// MuniverseEnvs with NewMuniverseEnvs.
-type MuniverseEnvFlags struct {
-	// Name is the name of the muniverse environment.
+// GameFlags holds various parameters for creating game
+// environments.
+type GameFlags struct {
+	// Name is the name of the environment.
 	Name string
 
 	// RecordDir is an optional path to where recordings
 	// should be stored.
+	// Currently, this is only supported for muniverse.
 	RecordDir string
 
 	// FrameTime is the time per step.
+	// This is only supported for muniverse games.
 	FrameTime time.Duration
 }
 
 // AddFlags adds the options to the flag package's global
 // set of flags.
-func (m *MuniverseEnvFlags) AddFlags() {
-	flag.StringVar(&m.Name, "env", "", "muniverse environment name")
-	flag.StringVar(&m.RecordDir, "record", "", "muniverse recording directory")
-	flag.DurationVar(&m.FrameTime, "frametime", time.Second/8, "simulated time per step")
+func (g *GameFlags) AddFlags() {
+	flag.StringVar(&g.Name, "env", "", "game environment name")
+	flag.StringVar(&g.RecordDir, "record", "", "muniverse recording directory")
+	flag.DurationVar(&g.FrameTime, "frametime", time.Second/8,
+		"time per step (muniverse only)")
 }

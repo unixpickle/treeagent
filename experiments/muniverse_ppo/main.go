@@ -16,19 +16,17 @@ import (
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/lazyseq"
-	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
 )
 
 type Flags struct {
-	EnvFlags  experiments.MuniverseEnvFlags
+	GameFlags experiments.GameFlags
 	Algorithm experiments.AlgorithmFlag
 
 	BatchSize    int
 	ParallelEnvs int
-	LogInterval  int
 
 	Depth      int
 	StepSize   float64
@@ -46,12 +44,11 @@ type Flags struct {
 
 func main() {
 	flags := &Flags{}
-	flags.EnvFlags.AddFlags()
+	flags.GameFlags.AddFlags()
 	flags.Algorithm.AddFlag()
 	flag.IntVar(&flags.BatchSize, "batch", 2048, "steps per rollout")
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
-	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
@@ -70,7 +67,7 @@ func main() {
 	creator := anyvec32.CurrentCreator()
 
 	log.Println("Creating environments...")
-	envs, err := experiments.NewMuniverseEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
+	envs, err := experiments.MakeGames(creator, &flags.GameFlags, flags.ParallelEnvs)
 	must(err)
 
 	actionSpace := anyrl.Softmax{}
@@ -108,7 +105,7 @@ func main() {
 		for batchIdx := 0; true; batchIdx++ {
 			log.Println("Gathering batch of experience...")
 
-			rollouts, entropy, err := experiments.GatherRolloutsMuniverse(roller, envs,
+			rollouts, entropy, err := experiments.GatherRollouts(roller, envs,
 				flags.BatchSize)
 			must(err)
 
@@ -171,8 +168,8 @@ func main() {
 }
 
 func loadOrCreateForests(flags *Flags) (actor, critic *treeagent.Forest) {
-	numActions := 1 + len(muniverse.SpecForName(flags.EnvFlags.Name).KeyWhitelist)
-	actor = loadOrCreateForest(flags, flags.ActorFile, numActions)
+	info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
+	actor = loadOrCreateForest(flags, flags.ActorFile, info.ParamSize)
 	critic = loadOrCreateForest(flags, flags.CriticFile, 1)
 	return
 }

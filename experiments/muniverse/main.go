@@ -16,19 +16,17 @@ import (
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/lazyseq"
-	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
 )
 
 type Flags struct {
-	EnvFlags  experiments.MuniverseEnvFlags
+	GameFlags experiments.GameFlags
 	Algorithm experiments.AlgorithmFlag
 
 	BatchSize    int
 	ParallelEnvs int
-	LogInterval  int
 	Depth        int
 	StepSize     float64
 	Discount     float64
@@ -39,12 +37,11 @@ type Flags struct {
 
 func main() {
 	flags := &Flags{}
-	flags.EnvFlags.AddFlags()
+	flags.GameFlags.AddFlags()
 	flags.Algorithm.AddFlag()
 	flag.IntVar(&flags.BatchSize, "batch", 2048, "steps per batch")
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
-	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
@@ -57,7 +54,7 @@ func main() {
 	creator := anyvec32.CurrentCreator()
 
 	log.Println("Creating environments...")
-	envs, err := experiments.NewMuniverseEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
+	envs, err := experiments.MakeGames(creator, &flags.GameFlags, flags.ParallelEnvs)
 	must(err)
 
 	var judger anypg.ActionJudger
@@ -95,7 +92,7 @@ func main() {
 		for batchIdx := 0; true; batchIdx++ {
 			log.Println("Gathering batch of experience...")
 
-			rollouts, entropy, err := experiments.GatherRolloutsMuniverse(roller, envs,
+			rollouts, entropy, err := experiments.GatherRollouts(roller, envs,
 				flags.BatchSize)
 			must(err)
 
@@ -133,8 +130,8 @@ func loadOrCreatePolicy(flags *Flags) *treeagent.Forest {
 	data, err := ioutil.ReadFile(flags.SaveFile)
 	if err != nil {
 		log.Println("Created new policy.")
-		n := 1 + len(muniverse.SpecForName(flags.EnvFlags.Name).KeyWhitelist)
-		return treeagent.NewForest(n)
+		info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
+		return treeagent.NewForest(info.ParamSize)
 	}
 	var res *treeagent.Forest
 	must(json.Unmarshal(data, &res))
