@@ -16,9 +16,8 @@ const (
 var supportedAtariGames = map[string]bool{"Pong-v0": true}
 
 type atariEnv struct {
-	anyrl.Env
-
-	closer gym.Env
+	Env    anyrl.Env
+	Closer gym.Env
 }
 
 func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
@@ -34,9 +33,18 @@ func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 			CloseEnvs(res)
 			return nil, err
 		}
-		res = append(res, &atariEnv{Env: env, closer: client})
+		res = append(res, &atariEnv{Env: env, Closer: client})
 	}
 	return res, nil
+}
+
+func (a *atariEnv) Reset() (obs anyvec.Vector, err error) {
+	obs, err = a.Env.Reset()
+	if err != nil {
+		return
+	}
+	obs = downsampleAtariObs(obs)
+	return
 }
 
 func (a *atariEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64,
@@ -45,7 +53,15 @@ func (a *atariEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64
 	if err != nil {
 		return
 	}
+	obs = downsampleAtariObs(obs)
+	return
+}
 
+func (a *atariEnv) Close() error {
+	return a.Closer.Close()
+}
+
+func downsampleAtariObs(obs anyvec.Vector) anyvec.Vector {
 	comps := obsComponents(obs)
 	newComps := make([]float64, 0, atariWidth*atariHeight)
 	for y := 0; y < atariHeight; y++ {
@@ -59,13 +75,7 @@ func (a *atariEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64
 			newComps = append(newComps, val)
 		}
 	}
-
-	obs = obs.Creator().MakeVectorData(obs.Creator().MakeNumericList(newComps))
-	return
-}
-
-func (a *atariEnv) Close() error {
-	return a.closer.Close()
+	return obs.Creator().MakeVectorData(obs.Creator().MakeNumericList(newComps))
 }
 
 func obsComponents(obs anyvec.Vector) []float64 {

@@ -96,9 +96,13 @@ func main() {
 				flags.BatchSize)
 			must(err)
 
-			log.Printf("batch %d: mean=%f stddev=%f entropy=%f", batchIdx,
+			log.Printf(
+				"batch %d: mean=%f stddev=%f entropy=%f count=%d",
+				batchIdx,
 				rollouts.Rewards.Mean(), math.Sqrt(rollouts.Rewards.Variance()),
-				entropy)
+				entropy,
+				len(rollouts.Rewards),
+			)
 
 			log.Println("Training on batch...")
 			advantages := judger.JudgeActions(rollouts)

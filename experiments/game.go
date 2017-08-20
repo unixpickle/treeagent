@@ -71,8 +71,7 @@ func MakeGames(c anyvec.Creator, g *GameFlags, n int) (envs []Env, err error) {
 	if info.Muniverse {
 		return newMuniverseEnvs(c, g, n)
 	} else if info.Atari {
-		// TODO: atari support.
-		return nil, errors.New("Atari NYI")
+		return newAtariEnvs(c, g, n)
 	} else {
 		return nil, errors.New("unknown game source")
 	}
