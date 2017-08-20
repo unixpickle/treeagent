@@ -13,7 +13,7 @@ const (
 	atariScale  = 2
 )
 
-var supportedAtariGames = map[string]bool{"Pong-v0": true}
+var supportedAtariGames = map[string]bool{"Pong-v0": true, "Breakout-v0": true}
 
 type atariEnv struct {
 	Env    anyrl.Env
