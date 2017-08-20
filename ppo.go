@@ -28,75 +28,51 @@ type PPO struct {
 // It also returns the current value of the surrogate
 // objective, which the tree is designed to maximize.
 func (p *PPO) Step(data []Sample, forest *Forest) (step *Tree, obj anyvec.Numeric) {
-	var gradSamples []*gradientSample
-	var objSum anyvec.Numeric
-	for _, sample := range data {
-		obj, grad := p.objective(sample, forest)
-		gradSamples = append(gradSamples, &gradientSample{
-			Sample:   sample,
-			Gradient: grad,
-		})
-		if objSum == nil {
-			objSum = obj
-		} else {
-			objSum = grad.Creator().NumOps().Add(objSum, obj)
-		}
-	}
-	if objSum != nil {
-		c := gradSamples[0].Action().Creator()
-		objSum = c.NumOps().Div(objSum, c.MakeNumeric(float64(len(data))))
-	}
-	return p.Builder.buildTree(gradSamples, p.Builder.MaxDepth), objSum
+	params := p.forestParams(data, forest)
+	objective := p.objective(data, params)
+	gradSamples := splitSampleGrads(data, params, objective)
+	c := objective.Output().Creator()
+	objMean := c.NumOps().Div(anyvec.Sum(objective.Output()),
+		c.MakeNumeric(float64(len(data))))
+	return p.Builder.buildTree(gradSamples, p.Builder.MaxDepth), objMean
 }
 
-func (p *PPO) objective(sample Sample, forest *Forest) (obj anyvec.Numeric,
-	grad anyvec.Vector) {
-	c := sample.Action().Creator()
-
-	forestOut := forest.ApplyFeatureSource(sample)
-	outVar := anydiff.NewVar(c.MakeVectorData(c.MakeNumericList(forestOut)))
-
-	oldProb := p.Builder.ActionSpace.LogProb(
-		anydiff.NewConst(sample.ActionParams()),
-		sample.Action(),
-		1,
-	)
-	newProb := p.Builder.ActionSpace.LogProb(outVar, sample.Action(), 1)
-	ratio := anydiff.Exp(anydiff.Sub(newProb, oldProb))
-	rawObj := anydiff.Scale(ratio, c.MakeNumeric(sample.Advantage()))
-
-	if p.shouldClip(rawObj, sample.Advantage()) {
-		best := p.bestValue(sample.Advantage())
-		rawObj = anydiff.NewConst(c.MakeVectorData(c.MakeNumericList([]float64{best})))
+// forestParams applies the forest to each sample and
+// returns a variable containing every output vector.
+func (p *PPO) forestParams(samples []Sample, forest *Forest) *anydiff.Var {
+	c := samples[0].Action().Creator()
+	var outVecs []float64
+	for _, sample := range samples {
+		forestOut := forest.ApplyFeatureSource(sample)
+		outVecs = append(outVecs, forestOut...)
 	}
-
-	obj = anyvec.Sum(rawObj.Output())
-
-	if p.Builder.Regularizer != nil {
-		rawObj = anydiff.Add(rawObj, p.Builder.Regularizer.Regularize(outVar, 1))
-	}
-
-	g := anydiff.NewGrad(outVar)
-	rawObj.Propagate(anyvec.Ones(c, 1), g)
-	return obj, g[outVar]
+	return anydiff.NewVar(c.MakeVectorData(c.MakeNumericList(outVecs)))
 }
 
-func (p *PPO) shouldClip(rawObj anydiff.Res, adv float64) bool {
-	c := rawObj.Output().Creator()
-	ops := c.NumOps()
-	best := c.MakeNumeric(p.bestValue(adv))
-	actual := anyvec.Sum(rawObj.Output())
-	return ops.Greater(actual, best)
-}
+// objective computes the mean PPO objective.
+func (p *PPO) objective(samples []Sample, params anydiff.Res) anydiff.Res {
+	c := samples[0].Action().Creator()
 
-func (p *PPO) bestValue(adv float64) float64 {
+	oldParams := make([]anyvec.Vector, len(samples))
+	actions := make([]anyvec.Vector, len(samples))
+	advs := make([]float64, len(samples))
+	for i, sample := range samples {
+		advs[i] = sample.Advantage()
+		oldParams[i] = sample.ActionParams()
+		actions[i] = sample.Action()
+	}
+	oldParamRes := anydiff.NewConst(c.Concat(oldParams...))
+	actionsVec := c.Concat(actions...)
+	advRes := anydiff.NewConst(c.MakeVectorData(c.MakeNumericList(advs)))
+
+	oldProbs := p.Builder.ActionSpace.LogProb(oldParamRes, actionsVec, len(samples))
+	newProbs := p.Builder.ActionSpace.LogProb(params, actionsVec, len(samples))
+	ratios := anydiff.Exp(anydiff.Sub(newProbs, oldProbs))
+
 	epsilon := p.Epsilon
 	if epsilon == 0 {
 		epsilon = anypg.DefaultPPOEpsilon
 	}
-	if adv < 0 {
-		return adv * (1 - epsilon)
-	} else {
-		return adv * (1 + epsilon)
-	}
+	obj := anypg.PPOObjective(c.MakeNumeric(epsilon), ratios, advRes)
+	return anydiff.Sum(obj)
 }

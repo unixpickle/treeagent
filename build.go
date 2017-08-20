@@ -135,19 +135,7 @@ func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
 		obj = anydiff.Add(obj, anydiff.Sum(reg))
 	}
 
-	grad := anydiff.NewGrad(params)
-	obj.Propagate(anyvec.Ones(c, 1), grad)
-	gradVec := grad[params]
-	gradSize := gradVec.Len() / len(samples)
-
-	res := make([]*gradientSample, len(samples))
-	for i, s := range samples {
-		res[i] = &gradientSample{
-			Sample:   s,
-			Gradient: gradVec.Slice(i*gradSize, (i+1)*gradSize),
-		}
-	}
-	return res
+	return splitSampleGrads(samples, params, obj)
 }
 
 // optimalSplit finds the optimal split for the given
@@ -253,6 +241,25 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 type gradientSample struct {
 	Sample
 	Gradient anyvec.Vector
+}
+
+// splitSampleGrads takes the gradient of obj with respect
+// to params and splits it up amongst the samples.
+func splitSampleGrads(samples []Sample, params *anydiff.Var,
+	obj anydiff.Res) []*gradientSample {
+	grad := anydiff.NewGrad(params)
+	obj.Propagate(anyvec.Ones(params.Output().Creator(), 1), grad)
+	gradVec := grad[params]
+	gradSize := gradVec.Len() / len(samples)
+
+	res := make([]*gradientSample, len(samples))
+	for i, s := range samples {
+		res[i] = &gradientSample{
+			Sample:   s,
+			Gradient: gradVec.Slice(i*gradSize, (i+1)*gradSize),
+		}
+	}
+	return res
 }
 
 func sumGradients(samples []*gradientSample) anyvec.Vector {
