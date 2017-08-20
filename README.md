@@ -32,3 +32,4 @@ Here is a high-level log of what I've been trying and what experiments I've run:
  * Attempted to train more stuff with PPO, gradient signs, smaller step sizes, and bigger batch sizes (e.g. 512). Step size of 0.01 was fairly unhelpful. Best model overnight still averages at ~9.
  * Looked at leaf nodes for all three algorithms. Discovered that MSE and mean-gradients are equivalent. Also discovered that the sum algorithm produces much more balanced trees.
  * In light of the above results, I started running two new PPO+sign experiments with the sum algorithm. In one experiment, I am using a big batch size (512). In the other, I'm using the default batch size, 128. In both, I lowered the `valstep` to 0.1 to prevent overfitting (which last night's experiments showed).
+ * After about a day, a PenguinSkip-v0 agent got up to ~150 mean reward. Here is what was used: PPO + sign, sum algorithm, step 0.05, batch=512, iters=8, discount=0.7, depth=4, valstep=0.1.
