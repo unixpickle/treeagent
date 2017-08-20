@@ -11,9 +11,7 @@ import (
 )
 
 const (
-	numBenchmarkFeatures = 1000
-	numBenchmarkSamples  = 100
-	benchmarkDepth       = 3
+	benchmarkDepth = 3
 )
 
 func TestMSETracker(t *testing.T) {
@@ -48,11 +46,23 @@ func TestMSETracker(t *testing.T) {
 }
 
 func BenchmarkBuild(b *testing.B) {
+	numFeatures := []int{1000, 10}
+	numSamples := []int{100, 5000}
+	names := []string{"ManyFeatures", "ManySamples"}
+	for i, name := range names {
+		b.Run(name, func(b *testing.B) {
+			benchmarkBuild(b, numFeatures[i], numSamples[i])
+		})
+	}
+}
+
+func benchmarkBuild(b *testing.B, numFeatures, numSamples int) {
 	c := anyvec64.DefaultCreator{}
+
 	var samples []Sample
-	for i := 0; i < numBenchmarkSamples; i++ {
+	for i := 0; i < numSamples; i++ {
 		sample := &memorySample{
-			features:     make([]float64, numBenchmarkFeatures),
+			features:     make([]float64, numFeatures),
 			action:       c.MakeVector(2),
 			actionParams: c.MakeVector(2),
 			advantage:    rand.NormFloat64(),
