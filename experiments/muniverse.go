@@ -40,20 +40,22 @@ func ActionSpaceMuniverse(e *muniverse.EnvSpec) (ActionSpace, int) {
 	return anyrl.Softmax{}, len(e.KeyWhitelist) + 1
 }
 
-// GatherRolloutsMuniverse produces n rollouts using the
+// GatherRolloutsMuniverse produces rollouts using the
 // provided environments.
+//
+// The steps argument specifies the minimum number of
+// timesteps in the resulting rollouts.
 //
 // Along with the rollouts, it produces an entropy measure
 // to indicate how much exploration took place.
 func GatherRolloutsMuniverse(roller *treeagent.Roller, envs []*MuniverseEnv,
-	n int) (*anyrl.RolloutSet, anyvec.Numeric, error) {
-	resChan := make(chan *anyrl.RolloutSet, n)
+	steps int) (*anyrl.RolloutSet, anyvec.Numeric, error) {
+	resChan := make(chan *anyrl.RolloutSet, 1)
 	errChan := make(chan error, 1)
-	requests := make(chan struct{}, n)
-	for i := 0; i < n; i++ {
+	requests := make(chan struct{}, len(envs))
+	for i := 0; i < len(envs); i++ {
 		requests <- struct{}{}
 	}
-	close(requests)
 
 	var wg sync.WaitGroup
 	for _, env := range envs {
@@ -81,8 +83,17 @@ func GatherRolloutsMuniverse(roller *treeagent.Roller, envs []*MuniverseEnv,
 	}()
 
 	var res []*anyrl.RolloutSet
+	var totalSteps int
 	for item := range resChan {
 		res = append(res, item)
+		if totalSteps < steps {
+			totalSteps += item.NumSteps()
+			if totalSteps < steps {
+				requests <- struct{}{}
+			} else {
+				close(requests)
+			}
+		}
 	}
 	packed := anyrl.PackRolloutSets(res)
 

@@ -48,7 +48,7 @@ func main() {
 	flags := &Flags{}
 	flags.EnvFlags.AddFlags()
 	flags.Algorithm.AddFlag()
-	flag.IntVar(&flags.BatchSize, "batch", 128, "rollout batch size")
+	flag.IntVar(&flags.BatchSize, "batch", 2048, "steps per rollout")
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
 	flag.IntVar(&flags.LogInterval, "logint", 16, "episodes per log")
