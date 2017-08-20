@@ -28,15 +28,16 @@ type Flags struct {
 	BatchSize    int
 	ParallelEnvs int
 
-	Depth      int
-	StepSize   float64
-	ValStep    float64
-	Discount   float64
-	Lambda     float64
-	EntropyReg float64
-	Epsilon    float64
-	SignOnly   bool
-	Iters      int
+	Depth       int
+	StepSize    float64
+	ValStep     float64
+	Discount    float64
+	Lambda      float64
+	FeatureFrac float64
+	EntropyReg  float64
+	Epsilon     float64
+	SignOnly    bool
+	Iters       int
 
 	ActorFile  string
 	CriticFile string
@@ -54,6 +55,7 @@ func main() {
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
 	flag.Float64Var(&flags.Lambda, "lambda", 0.95, "GAE coefficient")
+	flag.Float64Var(&flags.FeatureFrac, "featurefrac", 1, "fraction of features to use")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
@@ -82,9 +84,10 @@ func main() {
 	}
 
 	judger := &treeagent.Judger{
-		ValueFunc: valueFunc,
-		Discount:  flags.Discount,
-		Lambda:    flags.Lambda,
+		ValueFunc:   valueFunc,
+		Discount:    flags.Discount,
+		Lambda:      flags.Lambda,
+		FeatureFrac: flags.FeatureFrac,
 	}
 
 	ppo := &treeagent.PPO{
@@ -95,7 +98,8 @@ func main() {
 				Entropyer: actionSpace,
 				Coeff:     flags.EntropyReg,
 			},
-			Algorithm: flags.Algorithm.Algorithm,
+			Algorithm:   flags.Algorithm.Algorithm,
+			FeatureFrac: flags.FeatureFrac,
 		},
 		Epsilon: flags.Epsilon,
 	}

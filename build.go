@@ -2,6 +2,7 @@ package treeagent
 
 import (
 	"math"
+	"math/rand"
 	"runtime"
 	"sync"
 
@@ -64,6 +65,12 @@ type Builder struct {
 
 	// Algorithm specifies how to build the tree.
 	Algorithm TreeAlgorithm
+
+	// FeatureFrac is the fraction of features to try for
+	// each branching node.
+	//
+	// If 0, all features are tried.
+	FeatureFrac float64
 }
 
 // Build builds a tree based on the training data.
@@ -87,15 +94,9 @@ func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 		return res
 	}
 
-	numFeats := data[0].NumFeatures()
-
-	featureChan := make(chan int, numFeats)
-	for i := 0; i < numFeats; i++ {
-		featureChan <- i
-	}
-	close(featureChan)
-
-	splitChan := make(chan *splitInfo, numFeats)
+	numFeatures := data[0].NumFeatures()
+	featureChan := b.featuresToTry(numFeatures)
+	splitChan := make(chan *splitInfo, numFeatures)
 
 	var wg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -217,6 +218,28 @@ func (b *Builder) leafParams(data []*gradientSample) anyvec.Vector {
 	default:
 		panic("unknown tree algorithm")
 	}
+}
+
+func (b *Builder) featuresToTry(numFeatures int) <-chan int {
+	useFeatures := numFeatures
+	if b.FeatureFrac != 0 {
+		if b.FeatureFrac < 0 || b.FeatureFrac > 1 {
+			panic("feature fraction out of range")
+		}
+		useFeatures = int(math.Ceil(b.FeatureFrac * float64(numFeatures)))
+	}
+	featureChan := make(chan int, useFeatures)
+	if useFeatures != numFeatures {
+		for _, i := range rand.Perm(numFeatures)[:useFeatures] {
+			featureChan <- i
+		}
+	} else {
+		for i := 0; i < numFeatures; i++ {
+			featureChan <- i
+		}
+	}
+	close(featureChan)
+	return featureChan
 }
 
 func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,
