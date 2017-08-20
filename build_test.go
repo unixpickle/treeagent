@@ -48,45 +48,14 @@ func TestMSETracker(t *testing.T) {
 
 func TestBuildMSE(t *testing.T) {
 	c := anyvec64.DefaultCreator{}
-	samples := testingSamples(c, 1000)
+	samples := testingSamples(c, 5000, nil)
 	builder := &Builder{
 		MaxDepth:    2,
 		ActionSpace: anyrl.Softmax{},
 		Algorithm:   MSEAlgorithm,
 	}
 	tree := builder.Build(samples)
-	if tree.Leaf {
-		t.Fatal("expected branching root")
-	}
-	if tree.LessThan.Leaf || tree.GreaterEqual.Leaf {
-		t.Fatal("expected branching children")
-	}
-
-	if tree.Feature == 1 {
-		if math.Abs(tree.Threshold-1.5) > 0.5 {
-			t.Errorf("expected root threshold around 1.5, but got %f", tree.Threshold)
-		}
-	} else {
-		t.Errorf("expected root feature to be 1, but got %d", tree.Feature)
-	}
-
-	if tree.LessThan.Feature == 1 {
-		if math.Abs(tree.LessThan.Threshold-0.5) > 0.5 {
-			t.Errorf("expected left threshold around 0.5, but got %f",
-				tree.LessThan.Threshold)
-		}
-	} else {
-		t.Errorf("expected left feature to be 1, but got %d", tree.LessThan.Feature)
-	}
-
-	if tree.GreaterEqual.Feature == 1 {
-		if math.Abs(tree.GreaterEqual.Threshold-2.5) > 0.5 {
-			t.Errorf("expected right threshold around 2.5, but got %f",
-				tree.GreaterEqual.Threshold)
-		}
-	} else {
-		t.Fatalf("expected right feature to be 1, but got %d", tree.LessThan.Feature)
-	}
+	verifyTestingSamplesTree(t, tree)
 }
 
 // testingSamples creates a bunch of samples according to
@@ -144,6 +113,47 @@ func testingSamples(c anyvec.Creator, numSamples int, f *Forest) []Sample {
 	}
 
 	return samples
+}
+
+// verifyTestingSamplesTree checks that a depth-2 tree
+// efficiently captures the solution to the samples from
+// testingSamples.
+func verifyTestingSamplesTree(t *testing.T, tree *Tree) {
+	if tree.Leaf {
+		t.Error("expected branching root")
+		return
+	}
+	if tree.LessThan.Leaf || tree.GreaterEqual.Leaf {
+		t.Error("expected branching children")
+		return
+	}
+
+	if tree.Feature == 1 {
+		if math.Abs(tree.Threshold-1.5) > 0.5 {
+			t.Errorf("expected root threshold around 1.5, but got %f", tree.Threshold)
+		}
+	} else {
+		t.Errorf("expected root feature to be 1, but got %d", tree.Feature)
+	}
+
+	if tree.LessThan.Feature == 1 {
+		if math.Abs(tree.LessThan.Threshold-0.5) > 0.5 {
+			t.Errorf("expected left threshold around 0.5, but got %f",
+				tree.LessThan.Threshold)
+		}
+	} else {
+		t.Errorf("expected left feature to be 1, but got %d", tree.LessThan.Feature)
+	}
+
+	if tree.GreaterEqual.Feature == 1 {
+		if math.Abs(tree.GreaterEqual.Threshold-2.5) > 0.5 {
+			t.Errorf("expected right threshold around 2.5, but got %f",
+				tree.GreaterEqual.Threshold)
+		}
+	} else {
+		t.Errorf("expected right feature to be 1, but got %d", tree.LessThan.Feature)
+		return
+	}
 }
 
 func BenchmarkBuild(b *testing.B) {
