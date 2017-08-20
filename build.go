@@ -52,21 +52,21 @@ type Builder struct {
 
 // Build builds a tree based on the training data.
 func (b *Builder) Build(data []Sample) *Tree {
-	res := b.buildTree(b.gradientSamples(data), b.MaxDepth)
-	if b.Algorithm == SumAlgorithm {
-		res.scaleParams(1 / float64(len(data)))
-	}
-	return res
+	return b.buildTree(b.gradientSamples(data), b.MaxDepth)
 }
 
 func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
 	} else if depth == 0 || len(data) == 1 {
-		return &Tree{
+		res := &Tree{
 			Leaf:   true,
 			Params: vecToFloats(b.leafParams(data)),
 		}
+		if b.Algorithm == SumAlgorithm {
+			res.scaleParams(1 / float64(len(data)))
+		}
+		return res
 	}
 
 	numFeats := data[0].NumFeatures()
