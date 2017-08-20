@@ -13,13 +13,12 @@ import (
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/lazyseq"
-	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
 )
 
 type Flags struct {
-	EnvFlags experiments.MuniverseEnvFlags
+	GameFlags experiments.GameFlags
 
 	Discount     float64
 	Unnormalized bool
@@ -35,7 +34,7 @@ type Flags struct {
 
 func main() {
 	var flags Flags
-	flags.EnvFlags.AddFlags()
+	flags.GameFlags.AddFlags()
 	flag.Float64Var(&flags.Discount, "discount", 0.7, "reward discount factor")
 	flag.BoolVar(&flags.Unnormalized, "unnorm", false, "use unnormalized rewards")
 	flag.IntVar(&flags.NumParallel, "numparallel", runtime.GOMAXPROCS(0),
@@ -48,25 +47,22 @@ func main() {
 
 	log.Println("Creating environments...")
 	c := anyvec32.CurrentCreator()
-	envs, err := experiments.NewMuniverseEnvs(c, &flags.EnvFlags, flags.NumParallel)
+	envs, err := experiments.MakeGames(c, &flags.GameFlags, flags.NumParallel)
 	essentials.Must(err)
-	spec := muniverse.SpecForName(flags.EnvFlags.Name)
+	info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
 
 	log.Println("Gathering rollouts...")
-	actionSpace, numActions := experiments.ActionSpaceMuniverse(spec)
 	roller := &treeagent.Roller{
-		Policy:      treeagent.NewForest(numActions),
+		Policy:      treeagent.NewForest(info.ParamSize),
 		Creator:     c,
-		ActionSpace: actionSpace,
+		ActionSpace: info.ActionSpace,
 		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
 			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
 		},
 	}
-	rollouts, _, err := experiments.GatherRolloutsMuniverse(roller, envs, flags.Batch)
+	rollouts, _, err := experiments.GatherRollouts(roller, envs, flags.Batch)
+	experiments.CloseEnvs(envs)
 	essentials.Must(err)
-	for _, env := range envs {
-		env.Env.Close()
-	}
 
 	log.Println("Creating training samples...")
 	judger := &anypg.QJudger{
@@ -103,7 +99,7 @@ func main() {
 		} else {
 			builder := &treeagent.Builder{
 				MaxDepth:    flags.Depth,
-				ActionSpace: actionSpace,
+				ActionSpace: info.ActionSpace,
 				Algorithm:   algo,
 			}
 			tree = builder.Build(samples)
