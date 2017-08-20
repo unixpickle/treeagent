@@ -4,12 +4,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/muniverse/chrome"
 )
+
+const muniverseDownsample = 4
 
 // muniverseEnv is an anyrl.Env wrapper around a
 // muniverse.Env.
@@ -23,19 +24,17 @@ type muniverseEnv struct {
 }
 
 // newMuniverseEnvs creates n environment instances.
-func newMuniverseEnvs(c anyvec.Creator, g *GameFlags, n int) ([]anyrl.Env, error) {
+func newMuniverseEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 	spec := muniverse.SpecForName(g.Name)
 	if spec == nil {
 		return nil, errors.New(`"` + g.Name + `" not found`)
 	}
 
-	var res []anyrl.Env
+	var res []Env
 	for i := 0; i < n; i++ {
 		env, err := muniverse.NewEnv(spec)
 		if err != nil {
-			for _, e := range res {
-				e.(*muniverseEnv).Env.Close()
-			}
+			CloseEnvs(res)
 			return nil, err
 		}
 
@@ -108,9 +107,14 @@ func (m *muniverseEnv) Step(action anyvec.Vector) (observation anyvec.Vector,
 	return
 }
 
+// Close shuts down the environment.
+func (m *muniverseEnv) Close() error {
+	return m.Env.Close()
+}
+
 func (m *muniverseEnv) simplifyImage(in []uint8) anyvec.Vector {
 	spec := m.Env.Spec()
-	w, h := downsampledSize(spec.Width, spec.Height)
+	w, h := muniverseDownsampledSize(spec.Width, spec.Height)
 	data := make([]float64, 0, w*h)
 	for y := 0; y < spec.Height; y += 4 {
 		for x := 0; x < spec.Width; x += 4 {
@@ -123,4 +127,16 @@ func (m *muniverseEnv) simplifyImage(in []uint8) anyvec.Vector {
 		}
 	}
 	return m.Creator.MakeVectorData(m.Creator.MakeNumericList(data))
+}
+
+func muniverseDownsampledSize(width, height int) (int, int) {
+	subWidth := width / 4
+	subHeight := height / 4
+	if width%4 != 0 {
+		subWidth++
+	}
+	if height%4 != 0 {
+		subHeight++
+	}
+	return subWidth, subHeight
 }

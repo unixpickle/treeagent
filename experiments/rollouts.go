@@ -18,7 +18,7 @@ import (
 // Along with the rollouts, GatherRollouts produces an
 // entropy measure, indicating how much exploration took
 // place.
-func GatherRollouts(roller *treeagent.Roller, envs []anyrl.Env,
+func GatherRollouts(roller *treeagent.Roller, envs []Env,
 	steps int) (*anyrl.RolloutSet, anyvec.Numeric, error) {
 	resChan := make(chan *anyrl.RolloutSet, 1)
 	errChan := make(chan error, 1)

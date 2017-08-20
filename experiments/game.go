@@ -9,14 +9,6 @@ import (
 	"github.com/unixpickle/muniverse"
 )
 
-// ActionSpace is used to parameterize actions for an
-// environment.
-type ActionSpace interface {
-	anyrl.LogProber
-	anyrl.Sampler
-	anyrl.Entropyer
-}
-
 // GameInfo stores information about a pixel-based game.
 type GameInfo struct {
 	// Name of the environment.
@@ -41,7 +33,7 @@ type GameInfo struct {
 func LookupGameInfo(name string) (*GameInfo, error) {
 	spec := muniverse.SpecForName(name)
 	if spec != nil {
-		w, h := downsampledSize(spec.Width, spec.Height)
+		w, h := muniverseDownsampledSize(spec.Width, spec.Height)
 		// TODO: support tap games with Bernoulli actions.
 		return &GameInfo{
 			Name:        name,
@@ -54,16 +46,14 @@ func LookupGameInfo(name string) (*GameInfo, error) {
 		}, nil
 	}
 
-	// TODO: add all games here.
-	atariGames := map[string]bool{"Pong-v0": true}
-	if atariGames[name] {
+	if supportedAtariGames[name] {
 		return &GameInfo{
 			Name:        name,
 			ActionSpace: anyrl.Softmax{},
 			ParamSize:   6,
-			Width:       80,
-			Height:      105,
-			NumFeatures: 80 * 105,
+			Width:       atariWidth,
+			Height:      atariHeight,
+			NumFeatures: atariWidth * atariHeight,
 			Atari:       true,
 		}, nil
 	}
@@ -72,7 +62,7 @@ func LookupGameInfo(name string) (*GameInfo, error) {
 }
 
 // MakeGames creates n instances of a game environment.
-func MakeGames(c anyvec.Creator, g *GameFlags, n int) (envs []anyrl.Env, err error) {
+func MakeGames(c anyvec.Creator, g *GameFlags, n int) (envs []Env, err error) {
 	defer essentials.AddCtxTo("make games ("+g.Name+")", &err)
 	info, err := LookupGameInfo(g.Name)
 	if err != nil {
@@ -86,16 +76,4 @@ func MakeGames(c anyvec.Creator, g *GameFlags, n int) (envs []anyrl.Env, err err
 	} else {
 		return nil, errors.New("unknown game source")
 	}
-}
-
-func downsampledSize(width, height int) (int, int) {
-	subWidth := width / 4
-	subHeight := height / 4
-	if width%4 != 0 {
-		subWidth++
-	}
-	if height%4 != 0 {
-		subHeight++
-	}
-	return subWidth, subHeight
 }
