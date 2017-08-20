@@ -46,7 +46,7 @@ func TestMSETracker(t *testing.T) {
 	}
 }
 
-func TestBuild(t *testing.T) {
+func TestBuildMSE(t *testing.T) {
 	c := anyvec64.DefaultCreator{}
 	samples := testingSamples(c, 1000)
 	builder := &Builder{
