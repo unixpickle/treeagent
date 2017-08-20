@@ -2,6 +2,7 @@ package treeagent
 
 import (
 	"math/rand"
+	"runtime"
 	"testing"
 
 	"github.com/unixpickle/anyrl"
@@ -47,4 +48,44 @@ func testingRandomForest() *Forest {
 		res.Weights = append(res.Weights, 0.1)
 	}
 	return res
+}
+
+func BenchmarkPPO(b *testing.B) {
+	numFeatures := []int{1000, 10}
+	numSamples := []int{100, 5000}
+	names := []string{"ManyFeatures", "ManySamples"}
+	for i, name := range names {
+		b.Run(name, func(b *testing.B) {
+			benchmarkBuild(b, numFeatures[i], numSamples[i])
+		})
+	}
+}
+
+func benchmarkPPO(b *testing.B, numFeatures, numSamples int) {
+	c := anyvec64.DefaultCreator{}
+	samples := benchmarkingSamples(c, numFeatures, numSamples)
+	ppo := &PPO{
+		Builder: &Builder{
+			MaxDepth:    benchmarkDepth,
+			ActionSpace: anyrl.Softmax{},
+		},
+	}
+	base := NewForest(2)
+
+	for _, multithread := range []bool{false, true} {
+		name := "Single"
+		if multithread {
+			name = "Multi"
+		}
+		b.Run(name, func(b *testing.B) {
+			if !multithread {
+				old := runtime.GOMAXPROCS(0)
+				runtime.GOMAXPROCS(1)
+				defer runtime.GOMAXPROCS(old)
+			}
+			for i := 0; i < b.N; i++ {
+				ppo.Step(samples, base)
+			}
+		})
+	}
 }
