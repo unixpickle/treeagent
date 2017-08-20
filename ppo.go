@@ -74,5 +74,10 @@ func (p *PPO) objective(samples []Sample, params anydiff.Res) anydiff.Res {
 		epsilon = anypg.DefaultPPOEpsilon
 	}
 	obj := anypg.PPOObjective(c.MakeNumeric(epsilon), ratios, advRes)
+
+	if p.Builder.Regularizer != nil {
+		obj = anydiff.Add(obj, p.Builder.Regularizer.Regularize(params, len(samples)))
+	}
+
 	return anydiff.Sum(obj)
 }
