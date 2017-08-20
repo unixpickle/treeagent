@@ -94,12 +94,19 @@ func TestBuildMSE(t *testing.T) {
 // The observation dimensionality is 2, but the first
 // component is completely random.
 // There are four actions (parameterized via softmax).
-// The observation is drawn from [-0.5, 3.5].
-// The reward is |actionIdx - observation[1]|.
+// The value of observation[1] is drawn from [-0.5, 3.5].
+//
+// The reward is 1 if |actionIdx - observation[1]| <= 0.5,
+// or 0.5 if |actionIdx - observation[1]| <= 1.5.
+// Otherwise, the reward is 0.
 //
 // Multiple calls to testingSamples with the same
 // parameters will produce identical samples.
-func testingSamples(c anyvec.Creator, numSamples int) []Sample {
+//
+// If f is non-nil, then it is used to sample actions.
+// Otherwise, softmax parameters are generated from the
+// normal distribution.
+func testingSamples(c anyvec.Creator, numSamples int, f *Forest) []Sample {
 	gen := rand.New(rand.NewSource(1337))
 
 	softmax := anyrl.Softmax{}
@@ -107,16 +114,29 @@ func testingSamples(c anyvec.Creator, numSamples int) []Sample {
 	var samples []Sample
 	for i := 0; i < numSamples; i++ {
 		obs := gen.Float64()*4 - 0.5
+		features := []float64{gen.NormFloat64(), obs}
+
 		outParams := make([]float64, 4)
-		for i := range outParams {
-			outParams[i] = gen.NormFloat64()
+		if f == nil {
+			for i := range outParams {
+				outParams[i] = gen.NormFloat64()
+			}
+		} else {
+			copy(outParams, f.Apply(features))
 		}
+
 		outVec := c.MakeVectorData(c.MakeNumericList(outParams))
 		actionVec := softmax.Sample(outVec, 1)
 		actionIdx := anyvec.MaxIndex(actionVec)
-		reward := math.Abs(float64(actionIdx) - obs)
+		var reward float64
+		diff := math.Abs(float64(actionIdx) - obs)
+		if diff <= 0.5 {
+			reward = 1
+		} else if diff <= 1.5 {
+			reward = 0.5
+		}
 		samples = append(samples, &memorySample{
-			features:     []float64{gen.NormFloat64(), obs},
+			features:     features,
 			action:       actionVec,
 			actionParams: outVec,
 			advantage:    reward,
