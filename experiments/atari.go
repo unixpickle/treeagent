@@ -13,7 +13,10 @@ const (
 	atariScale  = 2
 )
 
-var supportedAtariGames = map[string]bool{"Pong-v0": true, "Breakout-v0": true}
+var atariActionSizes = map[string]int{
+	"Pong-v0":     6,
+	"Breakout-v0": 4,
+}
 
 type atariEnv struct {
 	Env    anyrl.Env

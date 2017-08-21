@@ -46,11 +46,11 @@ func LookupGameInfo(name string) (*GameInfo, error) {
 		}, nil
 	}
 
-	if supportedAtariGames[name] {
+	if numActions, ok := atariActionSizes[name]; ok {
 		return &GameInfo{
 			Name:        name,
 			ActionSpace: anyrl.Softmax{},
-			ParamSize:   6,
+			ParamSize:   numActions,
 			Width:       atariWidth,
 			Height:      atariHeight,
 			NumFeatures: atariWidth * atariHeight,
