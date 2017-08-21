@@ -39,6 +39,7 @@ type Flags struct {
 	Epsilon     float64
 	SignOnly    bool
 	Iters       int
+	ValIters    int
 
 	ActorFile  string
 	CriticFile string
@@ -62,6 +63,7 @@ func main() {
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
+	flag.IntVar(&flags.ValIters, "valiters", 4, "value training iterations per batch")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
 	flag.StringVar(&flags.CriticFile, "critic", "critic.json", "file for saved value function")
 	flag.Parse()
@@ -135,7 +137,7 @@ func main() {
 			}
 
 			log.Println("Training value function...")
-			for i := 0; i < flags.Iters; i++ {
+			for i := 0; i < flags.ValIters; i++ {
 				advSamples := judger.TrainingSamples(rollouts)
 				sampleChan := treeagent.Uint8Samples(advSamples)
 				samples := treeagent.AllSamples(sampleChan)
