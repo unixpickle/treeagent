@@ -137,23 +137,15 @@ func main() {
 			}
 
 			log.Println("Training value function...")
+			rawSamples = judger.TrainingSamples(rollouts)
+			sampleChan = treeagent.Uint8Samples(rawSamples)
+			samples = treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.ValIters; i++ {
-				advSamples := judger.TrainingSamples(rollouts)
-				sampleChan := treeagent.Uint8Samples(advSamples)
-				samples := treeagent.AllSamples(sampleChan)
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
-
-				var totalError float64
-				for _, sample := range samples {
-					totalError += math.Pow(sample.Advantage(), 2)
-				}
-				mse := totalError / float64(len(samples))
-
-				tree := judger.Train(minibatch, flags.Depth)
+				tree, loss := judger.Train(minibatch, flags.Depth)
 				step := judger.OptimalWeight(samples, tree) * flags.ValStep
 				valueFunc.Add(tree, step)
-
-				log.Printf("step %d: mse=%f step=%f", i, mse, step)
+				log.Printf("step %d: mse=%f step=%f", i, loss, step)
 			}
 
 			log.Println("Saving...")

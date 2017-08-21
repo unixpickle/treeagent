@@ -49,37 +49,37 @@ func (j *Judger) JudgeActions(r *anyrl.RolloutSet) anyrl.Rewards {
 }
 
 // TrainingSamples produces a stream of Samples which are
-// suitable for the Train method.
+// suitable for the Train and OptimalWeight methods.
 //
-// The Advantage of the resulting samples is a low-bias
-// estimator of the advantage function.
+// One set of training samples can be re-used for multiple
+// training iterations.
 func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
-	// The derivative of 0.5*(actual - predicted)^2 is just
-	// the difference, which can be computed with GAE if
-	// we set lambda to 1.
-	j1 := *j
-	j1.Lambda = 1
-	differences := j1.JudgeActions(r)
-	return RolloutSamples(r, differences)
+	judger := &anypg.QJudger{Discount: j.Discount}
+	return RolloutSamples(r, judger.JudgeActions(r))
 }
 
-// Train generates a tree to improve the value function.
+// Train generates a tree to improve the value function
+// and returns the loss that the tree aims to improve.
 //
 // The advantages in the samples should come from
 // TrainingSamples.
-func (j *Judger) Train(data []Sample, maxDepth int) *Tree {
+func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 	var gradSamples []*gradientSample
+	var loss float64
 	for _, sample := range data {
+		approximation := j.ValueFunc.ApplyFeatureSource(sample)[0]
+		grad := sample.Advantage() - approximation
 		gradSamples = append(gradSamples, &gradientSample{
 			Sample:   sample,
-			Gradient: []float64{sample.Advantage()},
+			Gradient: []float64{grad},
 		})
+		loss += grad * grad
 	}
 	builder := &Builder{
 		Algorithm:   MSEAlgorithm,
 		FeatureFrac: j.FeatureFrac,
 	}
-	return builder.buildTree(gradSamples, maxDepth)
+	return builder.buildTree(gradSamples, maxDepth), loss / float64(len(data))
 }
 
 // OptimalWeight returns the optimal weight for the tree
@@ -92,8 +92,9 @@ func (j *Judger) OptimalWeight(data []Sample, t *Tree) float64 {
 	var denominator float64
 	for _, sample := range data {
 		out := t.FindFeatureSource(sample)[0]
+		approximation := j.ValueFunc.ApplyFeatureSource(sample)[0]
 		denominator += out * out
-		numerator += out * sample.Advantage()
+		numerator += out * (sample.Advantage() - approximation)
 	}
 	return numerator / denominator
 }
