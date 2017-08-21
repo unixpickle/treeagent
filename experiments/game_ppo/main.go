@@ -34,6 +34,7 @@ type Flags struct {
 	Discount    float64
 	Lambda      float64
 	FeatureFrac float64
+	Minibatch   float64
 	EntropyReg  float64
 	Epsilon     float64
 	SignOnly    bool
@@ -56,6 +57,7 @@ func main() {
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
 	flag.Float64Var(&flags.Lambda, "lambda", 0.95, "GAE coefficient")
 	flag.Float64Var(&flags.FeatureFrac, "featurefrac", 1, "fraction of features to use")
+	flag.Float64Var(&flags.Minibatch, "minibatch", 1, "mini-batch fraction for each tree")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
 	flag.Float64Var(&flags.Epsilon, "epsilon", 0.1, "PPO epsilon")
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
@@ -123,7 +125,8 @@ func main() {
 			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
-				tree, obj := ppo.Step(samples, policy)
+				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
+				tree, obj := ppo.Step(minibatch, policy)
 				log.Printf("step %d: objective=%v", i, obj)
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)
@@ -136,6 +139,7 @@ func main() {
 				advSamples := judger.TrainingSamples(rollouts)
 				sampleChan := treeagent.Uint8Samples(advSamples)
 				samples := treeagent.AllSamples(sampleChan)
+				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 
 				var totalError float64
 				for _, sample := range samples {
@@ -143,7 +147,7 @@ func main() {
 				}
 				mse := totalError / float64(len(samples))
 
-				tree := judger.Train(samples, flags.Depth)
+				tree := judger.Train(minibatch, flags.Depth)
 				step := judger.OptimalWeight(samples, tree) * flags.ValStep
 				valueFunc.Add(tree, step)
 

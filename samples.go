@@ -1,6 +1,9 @@
 package treeagent
 
 import (
+	"math"
+	"math/rand"
+
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyvec"
 )
@@ -112,6 +115,19 @@ func AllSamples(ch <-chan Sample) []Sample {
 	var res []Sample
 	for s := range ch {
 		res = append(res, s)
+	}
+	return res
+}
+
+// Minibatch selects a random fraction of the samples.
+func Minibatch(samples []Sample, frac float64) []Sample {
+	count := int(math.Ceil(float64(len(samples)) * frac))
+	if count == 0 {
+		count = len(samples)
+	}
+	res := make([]Sample, count)
+	for i, j := range rand.Perm(len(samples))[:count] {
+		res[i] = samples[j]
 	}
 	return res
 }
