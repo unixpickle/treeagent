@@ -70,11 +70,9 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 func (j *Judger) Train(data []Sample, maxDepth int) *Tree {
 	var gradSamples []*gradientSample
 	for _, sample := range data {
-		c := sample.Action().Creator()
-		vec := c.MakeVectorData(c.MakeNumericList([]float64{sample.Advantage()}))
 		gradSamples = append(gradSamples, &gradientSample{
 			Sample:   sample,
-			Gradient: vec,
+			Gradient: []float64{sample.Advantage()},
 		})
 	}
 	builder := &Builder{

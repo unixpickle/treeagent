@@ -84,7 +84,7 @@ func (b *Builder) buildTree(data []*gradientSample, depth int) *Tree {
 	} else if depth == 0 || len(data) == 1 {
 		res := &Tree{
 			Leaf:   true,
-			Params: vecToFloats(b.leafParams(data)),
+			Params: ActionParams(b.leafParams(data)),
 		}
 		if b.Algorithm == SumAlgorithm || b.Algorithm == BalancedSumAlgorithm {
 			res.scaleParams(1 / float64(len(data)))
@@ -207,14 +207,12 @@ func (b *Builder) splitTracker() splitTracker {
 	}
 }
 
-func (b *Builder) leafParams(data []*gradientSample) anyvec.Vector {
+func (b *Builder) leafParams(data []*gradientSample) smallVec {
 	switch b.Algorithm {
 	case SumAlgorithm, BalancedSumAlgorithm, SignAlgorithm:
 		return sumGradients(data)
 	case MeanAlgorithm, MSEAlgorithm, StddevAlgorithm:
-		sum := sumGradients(data)
-		sum.Scale(sum.Creator().MakeNumeric(1 / float64(len(data))))
-		return sum
+		return sumGradients(data).Scale(1 / float64(len(data)))
 	default:
 		panic("unknown tree algorithm")
 	}
@@ -287,7 +285,7 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 
 type gradientSample struct {
 	Sample
-	Gradient anyvec.Vector
+	Gradient smallVec
 }
 
 // splitSampleGrads takes the gradient of obj with respect
@@ -300,16 +298,17 @@ func splitSampleGrads(samples []Sample, params *anydiff.Var,
 	gradSize := gradVec.Len() / len(samples)
 
 	res := make([]*gradientSample, len(samples))
+	nativeGrad := vecToFloats(gradVec)
 	for i, s := range samples {
 		res[i] = &gradientSample{
 			Sample:   s,
-			Gradient: gradVec.Slice(i*gradSize, (i+1)*gradSize),
+			Gradient: nativeGrad[i*gradSize : (i+1)*gradSize],
 		}
 	}
 	return res
 }
 
-func sumGradients(samples []*gradientSample) anyvec.Vector {
+func sumGradients(samples []*gradientSample) smallVec {
 	sum := samples[0].Gradient.Copy()
 	for _, sample := range samples[1:] {
 		sum.Add(sample.Gradient)
@@ -327,13 +326,13 @@ type splitTracker interface {
 
 // A sumTracker is a splitTracker for SumAlgorithm.
 type sumTracker struct {
-	leftSum  anyvec.Vector
-	rightSum anyvec.Vector
+	leftSum  smallVec
+	rightSum smallVec
 }
 
 func (s *sumTracker) Reset(rightSamples []*gradientSample) {
 	s.rightSum = sumGradients(rightSamples)
-	s.leftSum = s.rightSum.Creator().MakeVector(s.rightSum.Len())
+	s.leftSum = make(smallVec, len(s.rightSum))
 }
 
 func (s *sumTracker) MoveToLeft(sample *gradientSample) {
@@ -343,8 +342,8 @@ func (s *sumTracker) MoveToLeft(sample *gradientSample) {
 
 func (s *sumTracker) Quality() float64 {
 	var sum float64
-	for _, vec := range []anyvec.Vector{s.leftSum, s.rightSum} {
-		sum += numToFloat(vec.Dot(vec))
+	for _, vec := range []smallVec{s.leftSum, s.rightSum} {
+		sum += vec.Dot(vec)
 	}
 	return sum
 }
@@ -394,12 +393,12 @@ func (m *meanTracker) MoveToLeft(sample *gradientSample) {
 
 func (m *meanTracker) Quality() float64 {
 	s := &m.sumTracker
-	sums := []anyvec.Vector{s.leftSum, s.rightSum}
+	sums := []smallVec{s.leftSum, s.rightSum}
 	counts := []int{m.leftCount, m.rightCount}
 
 	var sum float64
 	for i, vec := range sums {
-		sum += numToFloat(vec.Dot(vec)) / float64(counts[i])
+		sum += vec.Dot(vec) / float64(counts[i])
 	}
 
 	return sum
@@ -419,7 +418,7 @@ func (m *mseTracker) Reset(rightSamples []*gradientSample) {
 	m.leftSquares = 0
 	m.rightSquares = 0
 	for _, sample := range rightSamples {
-		m.rightSquares += numToFloat(sample.Gradient.Dot(sample.Gradient))
+		m.rightSquares += sample.Gradient.Dot(sample.Gradient)
 	}
 	m.leftCount = 0
 	m.rightCount = len(rightSamples)
@@ -427,7 +426,7 @@ func (m *mseTracker) Reset(rightSamples []*gradientSample) {
 
 func (m *mseTracker) MoveToLeft(sample *gradientSample) {
 	m.sumTracker.MoveToLeft(sample)
-	sq := numToFloat(sample.Gradient.Dot(sample.Gradient))
+	sq := sample.Gradient.Dot(sample.Gradient)
 	m.leftSquares += sq
 	m.rightSquares -= sq
 	m.leftCount++
@@ -449,7 +448,7 @@ func (m *mseTracker) leftRightErrors() (left, right float64) {
 	//     Error = (x1^2 + ... + xn^2) - (x1 + ... + xn)^2/n
 	//
 
-	sums := []anyvec.Vector{m.sumTracker.leftSum, m.sumTracker.rightSum}
+	sums := []smallVec{m.sumTracker.leftSum, m.sumTracker.rightSum}
 	sqSums := []float64{m.leftSquares, m.rightSquares}
 	counts := []int{m.leftCount, m.rightCount}
 
@@ -459,7 +458,7 @@ func (m *mseTracker) leftRightErrors() (left, right float64) {
 		if n == 0 {
 			continue
 		}
-		reses[i] = sqSums[i] - numToFloat(sum.Dot(sum))/n
+		reses[i] = sqSums[i] - sum.Dot(sum)/n
 	}
 
 	return reses[0], reses[1]
@@ -483,6 +482,5 @@ type signTracker struct {
 }
 
 func (s *signTracker) Quality() float64 {
-	return numToFloat(anyvec.AbsSum(s.leftSum)) +
-		numToFloat(anyvec.AbsSum(s.rightSum))
+	return s.leftSum.AbsSum() + s.rightSum.AbsSum()
 }

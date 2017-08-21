@@ -16,12 +16,10 @@ const (
 )
 
 func TestMSETracker(t *testing.T) {
-	c := anyvec64.DefaultCreator{}
-
 	samples := []*gradientSample{
-		{Gradient: c.MakeVectorData([]float64{1, 2})},
-		{Gradient: c.MakeVectorData([]float64{3, 2})},
-		{Gradient: c.MakeVectorData([]float64{5, 1})},
+		{Gradient: []float64{1, 2}},
+		{Gradient: []float64{3, 2}},
+		{Gradient: []float64{5, 1}},
 	}
 
 	tracker := &mseTracker{}
