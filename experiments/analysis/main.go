@@ -73,6 +73,11 @@ func main() {
 	rawSamples := treeagent.RolloutSamples(rollouts, advs)
 	samples := treeagent.AllSamples(treeagent.Uint8Samples(rawSamples))
 
+	log.Println("Computing exact gradient...")
+	exactGrad := ExactGradient(samples, info.ActionSpace)
+
+	log.Println("Building trees...")
+
 	algos := []treeagent.TreeAlgorithm{
 		treeagent.SumAlgorithm,
 		treeagent.MeanAlgorithm,
@@ -106,6 +111,9 @@ func main() {
 			tree = builder.Build(samples)
 		}
 		TreeAnalysis(tree, samples, &flags)
+		if !flags.ValueFunc {
+			GradAnalysis(tree, samples, exactGrad)
+		}
 	}
 	PrintSeparator()
 }
