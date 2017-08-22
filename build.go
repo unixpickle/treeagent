@@ -242,11 +242,11 @@ func (b *Builder) featuresToTry(numFeatures int) <-chan int {
 
 func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,
 	[]float64) {
-	var vals []float64
-	var sorted []*gradientSample
-	for _, sample := range samples {
-		vals = append(vals, sample.Feature(feature))
-		sorted = append(sorted, sample)
+	vals := make([]float64, len(samples))
+	sorted := make([]*gradientSample, len(samples))
+	for i, sample := range samples {
+		vals[i] = sample.Feature(feature)
+		sorted[i] = sample
 	}
 
 	essentials.VoodooSort(vals, func(i, j int) bool {
