@@ -39,7 +39,7 @@ func main() {
 	flag.BoolVar(&flags.Unnormalized, "unnorm", false, "use unnormalized rewards")
 	flag.IntVar(&flags.NumParallel, "numparallel", runtime.GOMAXPROCS(0),
 		"environments to run in parallel")
-	flag.IntVar(&flags.Batch, "batch", 128, "number of rollouts to gather")
+	flag.IntVar(&flags.Batch, "batch", 2048, "number of steps to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
 	flag.BoolVar(&flags.ValueFunc, "valfunc", false, "train a value function, not a policy")
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
@@ -95,7 +95,7 @@ func main() {
 				ValueFunc: treeagent.NewForest(1),
 				Discount:  flags.Discount,
 			}
-			tree = judger.Train(samples, flags.Depth)
+			tree, _ = judger.Train(samples, flags.Depth)
 		} else {
 			builder := &treeagent.Builder{
 				MaxDepth:    flags.Depth,
