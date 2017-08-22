@@ -47,6 +47,11 @@ const (
 	// The resulting leaf parameters have values 0, 1, or
 	// -1.
 	SignAlgorithm
+
+	// AbsAlgorithm uses the same splitting criteria as
+	// SignAlgorithm, but it uses the gradient means in
+	// the leaves instead of the gradient signs.
+	AbsAlgorithm
 )
 
 // A Builder builds decision trees to improve on Forest
@@ -200,7 +205,7 @@ func (b *Builder) splitTracker() splitTracker {
 		return &balancedSumTracker{}
 	case StddevAlgorithm:
 		return &stddevTracker{}
-	case SignAlgorithm:
+	case SignAlgorithm, AbsAlgorithm:
 		return &signTracker{}
 	default:
 		panic("unknown tree algorithm")
@@ -211,7 +216,7 @@ func (b *Builder) leafParams(data []*gradientSample) smallVec {
 	switch b.Algorithm {
 	case SumAlgorithm, BalancedSumAlgorithm, SignAlgorithm:
 		return sumGradients(data)
-	case MeanAlgorithm, MSEAlgorithm, StddevAlgorithm:
+	case MeanAlgorithm, MSEAlgorithm, StddevAlgorithm, AbsAlgorithm:
 		return sumGradients(data).Scale(1 / float64(len(data)))
 	default:
 		panic("unknown tree algorithm")

@@ -80,6 +80,7 @@ func main() {
 		treeagent.BalancedSumAlgorithm,
 		treeagent.StddevAlgorithm,
 		treeagent.SignAlgorithm,
+		treeagent.AbsAlgorithm,
 	}
 	if flags.ValueFunc {
 		algos = []treeagent.TreeAlgorithm{treeagent.MSEAlgorithm}

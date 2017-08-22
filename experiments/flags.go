@@ -30,6 +30,8 @@ func (a *AlgorithmFlag) String() string {
 		return "stddev"
 	case treeagent.SignAlgorithm:
 		return "sign"
+	case treeagent.AbsAlgorithm:
+		return "abs"
 	default:
 		return ""
 	}
@@ -50,6 +52,8 @@ func (a *AlgorithmFlag) Set(s string) error {
 		a.Algorithm = treeagent.StddevAlgorithm
 	case "sign":
 		a.Algorithm = treeagent.SignAlgorithm
+	case "abs":
+		a.Algorithm = treeagent.AbsAlgorithm
 	default:
 		return errors.New("unknown algorithm: " + s)
 	}
@@ -59,7 +63,8 @@ func (a *AlgorithmFlag) Set(s string) error {
 // AddFlag adds the flag to the flag package's global set
 // of flags.
 func (a *AlgorithmFlag) AddFlag() {
-	flag.Var(a, "algo", "splitting heuristic (sum, mse, mean, balancedsum, stddev, sign)")
+	flag.Var(a, "algo", "splitting heuristic (sum, mse, mean, balancedsum, "+
+		"stddev, sign, abs)")
 }
 
 // GameFlags holds various parameters for creating game
