@@ -28,6 +28,7 @@ type Flags struct {
 	BatchSize    int
 	ParallelEnvs int
 	Depth        int
+	MinLeaf      int
 	StepSize     float64
 	Discount     float64
 	EntropyReg   float64
@@ -43,6 +44,7 @@ func main() {
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
 	flag.IntVar(&flags.Depth, "depth", 3, "tree depth")
+	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.Discount, "discount", 0, "discount factor (0 is no discount)")
 	flag.Float64Var(&flags.EntropyReg, "reg", 0.01, "entropy regularization coefficient")
@@ -83,6 +85,7 @@ func main() {
 			Coeff:     flags.EntropyReg,
 		},
 		Algorithm: flags.Algorithm.Algorithm,
+		MinLeaf:   flags.MinLeaf,
 	}
 
 	// Train on a background goroutine so that we can
