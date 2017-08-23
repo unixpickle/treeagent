@@ -28,6 +28,7 @@ type Flags struct {
 
 	Depth     int
 	MinLeaf   int
+	MaskParam int
 	ValueFunc bool
 
 	DumpLeaves bool
@@ -43,6 +44,7 @@ func main() {
 	flag.IntVar(&flags.Batch, "batch", 2048, "number of steps to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
+	flag.IntVar(&flags.MaskParam, "mask", -1, "specific parameter to fit")
 	flag.BoolVar(&flags.ValueFunc, "valfunc", false, "train a value function, not a policy")
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
 	flag.Parse()
@@ -110,6 +112,9 @@ func main() {
 				ActionSpace: info.ActionSpace,
 				Algorithm:   algo,
 				MinLeaf:     flags.MinLeaf,
+			}
+			if flags.MaskParam >= 0 {
+				builder.ParamWhitelist = []int{flags.MaskParam}
 			}
 			tree = builder.Build(samples)
 		}

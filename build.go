@@ -82,6 +82,11 @@ type Builder struct {
 	// A split will never occur such that either of the
 	// two branches gets fewer than MinLeaf samples.
 	MinLeaf int
+
+	// ParamWhitelist, if non-nil, specifies the parameter
+	// indices to target with the trees.
+	// All parameters which are not specified will be 0.
+	ParamWhitelist []int
 }
 
 // Build builds a tree based on the training data.
@@ -165,7 +170,8 @@ func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
 		obj = anydiff.Add(obj, anydiff.Sum(reg))
 	}
 
-	return splitSampleGrads(samples, params, obj)
+	gradSamples := splitSampleGrads(samples, params, obj)
+	return b.maskGradients(gradSamples)
 }
 
 // optimalSplit finds the optimal split for the given
@@ -251,6 +257,20 @@ func (b *Builder) featuresToTry(numFeatures int) <-chan int {
 	}
 	close(featureChan)
 	return featureChan
+}
+
+func (b *Builder) maskGradients(samples []*gradientSample) []*gradientSample {
+	if len(samples) == 0 || b.ParamWhitelist == nil {
+		return samples
+	}
+	mask := make(smallVec, len(samples[0].Gradient))
+	for _, idx := range b.ParamWhitelist {
+		mask[idx] = 1
+	}
+	for _, sample := range samples {
+		sample.Gradient.Mul(mask)
+	}
+	return samples
 }
 
 func sortByFeature(samples []*gradientSample, feature int) ([]*gradientSample,

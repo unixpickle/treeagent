@@ -60,6 +60,13 @@ func (s smallVec) Sub(other smallVec) smallVec {
 	return s
 }
 
+func (s smallVec) Mul(other smallVec) smallVec {
+	for i, x := range other {
+		s[i] *= x
+	}
+	return s
+}
+
 func (s smallVec) Dot(other smallVec) float64 {
 	var res float64
 	for i, x := range s {
