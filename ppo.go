@@ -35,7 +35,7 @@ func (p *PPO) Step(data []Sample, forest *Forest) (step *Tree, obj anyvec.Numeri
 	objMean := c.NumOps().Div(anyvec.Sum(objective.Output()),
 		c.MakeNumeric(float64(len(data))))
 	gradSamples = p.Builder.maskGradients(gradSamples)
-	return p.Builder.buildTree(gradSamples, p.Builder.MaxDepth), objMean
+	return p.Builder.buildTree(gradSamples, gradSamples, p.Builder.MaxDepth), objMean
 }
 
 // forestParams applies the forest to each sample and

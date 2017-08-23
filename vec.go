@@ -86,3 +86,14 @@ func (s smallVec) AbsSum() float64 {
 	}
 	return res
 }
+
+func (s smallVec) Signs() smallVec {
+	for i, x := range s {
+		if x < 0 {
+			s[i] = -1
+		} else if x > 0 {
+			s[i] = 1
+		}
+	}
+	return s
+}

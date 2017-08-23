@@ -79,7 +79,8 @@ func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 		Algorithm:   MSEAlgorithm,
 		FeatureFrac: j.FeatureFrac,
 	}
-	return builder.buildTree(gradSamples, maxDepth), loss / float64(len(data))
+	mse := loss / float64(len(data))
+	return builder.buildTree(gradSamples, gradSamples, maxDepth), mse
 }
 
 // OptimalWeight returns the optimal weight for the tree
