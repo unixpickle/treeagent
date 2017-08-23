@@ -29,6 +29,7 @@ type Flags struct {
 	ParallelEnvs int
 
 	Depth       int
+	MinLeaf     int
 	StepSize    float64
 	ValStep     float64
 	Discount    float64
@@ -53,6 +54,7 @@ func main() {
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
 		"parallel environments")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
+	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
@@ -104,6 +106,7 @@ func main() {
 			},
 			Algorithm:   flags.Algorithm.Algorithm,
 			FeatureFrac: flags.FeatureFrac,
+			MinLeaf:     flags.MinLeaf,
 		},
 		Epsilon: flags.Epsilon,
 	}

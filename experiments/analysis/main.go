@@ -27,6 +27,7 @@ type Flags struct {
 	Batch       int
 
 	Depth     int
+	MinLeaf   int
 	ValueFunc bool
 
 	DumpLeaves bool
@@ -41,6 +42,7 @@ func main() {
 		"environments to run in parallel")
 	flag.IntVar(&flags.Batch, "batch", 2048, "number of steps to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
+	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
 	flag.BoolVar(&flags.ValueFunc, "valfunc", false, "train a value function, not a policy")
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
 	flag.Parse()
@@ -107,6 +109,7 @@ func main() {
 				MaxDepth:    flags.Depth,
 				ActionSpace: info.ActionSpace,
 				Algorithm:   algo,
+				MinLeaf:     flags.MinLeaf,
 			}
 			tree = builder.Build(samples)
 		}

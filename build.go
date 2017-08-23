@@ -76,6 +76,12 @@ type Builder struct {
 	//
 	// If 0, all features are tried.
 	FeatureFrac float64
+
+	// MinLeaf is the minimum number of representative
+	// samples for a leaf node.
+	// A split will never occur such that either of the
+	// two branches gets fewer than MinLeaf samples.
+	MinLeaf int
 }
 
 // Build builds a tree based on the training data.
@@ -177,14 +183,16 @@ func (b *Builder) optimalSplit(samples []*gradientSample, feature int) *splitInf
 	var bestSplit *splitInfo
 	for i, sample := range sorted {
 		if featureVals[i] > lastValue {
-			newSplit := &splitInfo{
-				Feature:      feature,
-				Threshold:    (featureVals[i] + lastValue) / 2,
-				Quality:      tracker.Quality(),
-				LeftSamples:  sorted[:i],
-				RightSamples: sorted[i:],
+			if i >= b.MinLeaf && len(samples)-i >= b.MinLeaf {
+				newSplit := &splitInfo{
+					Feature:      feature,
+					Threshold:    (featureVals[i] + lastValue) / 2,
+					Quality:      tracker.Quality(),
+					LeftSamples:  sorted[:i],
+					RightSamples: sorted[i:],
+				}
+				bestSplit = betterSplit(bestSplit, newSplit)
 			}
-			bestSplit = betterSplit(bestSplit, newSplit)
 			lastValue = featureVals[i]
 		}
 		tracker.MoveToLeft(sample)
