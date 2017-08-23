@@ -7,12 +7,12 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"runtime"
 	"sync"
 
 	"github.com/unixpickle/anydiff/anyseq"
-	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/lazyseq"
@@ -41,6 +41,7 @@ type Flags struct {
 	SignOnly    bool
 	Iters       int
 	ValIters    int
+	CoordDesc   bool
 
 	ActorFile  string
 	CriticFile string
@@ -66,6 +67,7 @@ func main() {
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
 	flag.IntVar(&flags.ValIters, "valiters", 4, "value training iterations per batch")
+	flag.BoolVar(&flags.CoordDesc, "coorddesc", false, "tune one action parameter at a time")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
 	flag.StringVar(&flags.CriticFile, "critic", "critic.json", "file for saved value function")
 	flag.Parse()
@@ -77,13 +79,13 @@ func main() {
 	log.Println("Creating environments...")
 	envs, err := experiments.MakeGames(creator, &flags.GameFlags, flags.ParallelEnvs)
 	must(err)
+	info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
 
-	actionSpace := anyrl.Softmax{}
 	policy, valueFunc := loadOrCreateForests(flags)
 	roller := &treeagent.Roller{
 		Policy:      policy,
 		Creator:     creator,
-		ActionSpace: actionSpace,
+		ActionSpace: info.ActionSpace,
 		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
 			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
 		},
@@ -99,9 +101,9 @@ func main() {
 	ppo := &treeagent.PPO{
 		Builder: &treeagent.Builder{
 			MaxDepth:    flags.Depth,
-			ActionSpace: actionSpace,
+			ActionSpace: info.ActionSpace,
 			Regularizer: &anypg.EntropyReg{
-				Entropyer: actionSpace,
+				Entropyer: info.ActionSpace,
 				Coeff:     flags.EntropyReg,
 			},
 			Algorithm:   flags.Algorithm.Algorithm,
@@ -131,6 +133,9 @@ func main() {
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
+				if flags.CoordDesc {
+					ppo.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
+				}
 				tree, obj := ppo.Step(minibatch, policy)
 				log.Printf("step %d: objective=%v", i, obj)
 				if flags.SignOnly {
