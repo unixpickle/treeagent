@@ -9,6 +9,17 @@ import "math"
 // tree algorithms.
 type TreeAlgorithm int
 
+// TreeAlgorithms contains all supported TreeAlgorithms.
+var TreeAlgorithms = []TreeAlgorithm{
+	SumAlgorithm,
+	MeanAlgorithm,
+	MSEAlgorithm,
+	BalancedSumAlgorithm,
+	StddevAlgorithm,
+	SignAlgorithm,
+	AbsAlgorithm,
+}
+
 const (
 	// SumAlgorithm constructs a tree where the leaf nodes
 	// contain gradient sums for the repersented samples.
@@ -42,6 +53,29 @@ const (
 	// the leaves instead of the gradient signs.
 	AbsAlgorithm
 )
+
+// String returns a human-readable representation of the
+// algorithm, like "mse" or "abs".
+func (t TreeAlgorithm) String() string {
+	switch t {
+	case SumAlgorithm:
+		return "sum"
+	case MeanAlgorithm:
+		return "mean"
+	case MSEAlgorithm:
+		return "mse"
+	case BalancedSumAlgorithm:
+		return "balancedsum"
+	case StddevAlgorithm:
+		return "stddev"
+	case SignAlgorithm:
+		return "sign"
+	case AbsAlgorithm:
+		return "abs"
+	default:
+		return ""
+	}
+}
 
 func (t TreeAlgorithm) splitTracker() splitTracker {
 	switch t {

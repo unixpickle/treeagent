@@ -3,6 +3,7 @@ package experiments
 import (
 	"errors"
 	"flag"
+	"strings"
 	"time"
 
 	"github.com/unixpickle/treeagent"
@@ -17,54 +18,28 @@ type AlgorithmFlag struct {
 // String returns the string representation of the
 // algorithm.
 func (a *AlgorithmFlag) String() string {
-	switch a.Algorithm {
-	case treeagent.SumAlgorithm:
-		return "sum"
-	case treeagent.MeanAlgorithm:
-		return "mean"
-	case treeagent.MSEAlgorithm:
-		return "mse"
-	case treeagent.BalancedSumAlgorithm:
-		return "balancedsum"
-	case treeagent.StddevAlgorithm:
-		return "stddev"
-	case treeagent.SignAlgorithm:
-		return "sign"
-	case treeagent.AbsAlgorithm:
-		return "abs"
-	default:
-		return ""
-	}
+	return a.Algorithm.String()
 }
 
 // Set sets the algorithm from a string representation.
 func (a *AlgorithmFlag) Set(s string) error {
-	switch s {
-	case "sum":
-		a.Algorithm = treeagent.SumAlgorithm
-	case "mean":
-		a.Algorithm = treeagent.MeanAlgorithm
-	case "mse":
-		a.Algorithm = treeagent.MSEAlgorithm
-	case "balancedsum":
-		a.Algorithm = treeagent.BalancedSumAlgorithm
-	case "stddev":
-		a.Algorithm = treeagent.StddevAlgorithm
-	case "sign":
-		a.Algorithm = treeagent.SignAlgorithm
-	case "abs":
-		a.Algorithm = treeagent.AbsAlgorithm
-	default:
-		return errors.New("unknown algorithm: " + s)
+	for _, alg := range treeagent.TreeAlgorithms {
+		if alg.String() == s {
+			a.Algorithm = alg
+			return nil
+		}
 	}
-	return nil
+	return errors.New("unknown algorithm: " + s)
 }
 
 // AddFlag adds the flag to the flag package's global set
 // of flags.
 func (a *AlgorithmFlag) AddFlag() {
-	flag.Var(a, "algo", "splitting heuristic (sum, mse, mean, balancedsum, "+
-		"stddev, sign, abs)")
+	var names []string
+	for _, alg := range treeagent.TreeAlgorithms {
+		names = append(names, alg.String())
+	}
+	flag.Var(a, "algo", "splitting heuristic ("+strings.Join(names, ", ")+")")
 }
 
 // GameFlags holds various parameters for creating game

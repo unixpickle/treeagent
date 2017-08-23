@@ -82,15 +82,7 @@ func main() {
 
 	log.Println("Building trees...")
 
-	algos := []treeagent.TreeAlgorithm{
-		treeagent.SumAlgorithm,
-		treeagent.MeanAlgorithm,
-		treeagent.MSEAlgorithm,
-		treeagent.BalancedSumAlgorithm,
-		treeagent.StddevAlgorithm,
-		treeagent.SignAlgorithm,
-		treeagent.AbsAlgorithm,
-	}
+	algos := treeagent.TreeAlgorithms
 	if flags.ValueFunc {
 		algos = []treeagent.TreeAlgorithm{treeagent.MSEAlgorithm}
 	}
