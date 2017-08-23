@@ -12,7 +12,6 @@ type TreeAlgorithm int
 // TreeAlgorithms contains all supported TreeAlgorithms.
 var TreeAlgorithms = []TreeAlgorithm{
 	SumAlgorithm,
-	MeanAlgorithm,
 	MSEAlgorithm,
 	BalancedSumAlgorithm,
 	StddevAlgorithm,
@@ -24,10 +23,6 @@ const (
 	// SumAlgorithm constructs a tree where the leaf nodes
 	// contain gradient sums for the repersented samples.
 	SumAlgorithm TreeAlgorithm = iota
-
-	// MeanAlgorithm is similar to SumAlgorithm, except
-	// that gradients are averaged instead of summed.
-	MeanAlgorithm
 
 	// MSEAlgorithm constructs a tree by minimizing
 	// mean-squared error over gradients.
@@ -60,8 +55,6 @@ func (t TreeAlgorithm) String() string {
 	switch t {
 	case SumAlgorithm:
 		return "sum"
-	case MeanAlgorithm:
-		return "mean"
 	case MSEAlgorithm:
 		return "mse"
 	case BalancedSumAlgorithm:
@@ -81,8 +74,6 @@ func (t TreeAlgorithm) splitTracker() splitTracker {
 	switch t {
 	case SumAlgorithm:
 		return &sumTracker{}
-	case MeanAlgorithm:
-		return &meanTracker{}
 	case MSEAlgorithm:
 		return &mseTracker{}
 	case BalancedSumAlgorithm:
@@ -102,7 +93,7 @@ func (t TreeAlgorithm) leafParams(leafData, allData []*gradientSample) smallVec 
 		return sumGradients(leafData).Signs()
 	case SumAlgorithm, BalancedSumAlgorithm:
 		return sumGradients(leafData).Scale(1 / float64(len(allData)))
-	case MeanAlgorithm, MSEAlgorithm, StddevAlgorithm, AbsAlgorithm:
+	case MSEAlgorithm, StddevAlgorithm, AbsAlgorithm:
 		return sumGradients(leafData).Scale(1 / float64(len(leafData)))
 	default:
 		panic("unknown tree algorithm")
@@ -163,38 +154,6 @@ func (b *balancedSumTracker) MoveToLeft(sample *gradientSample) {
 
 func (b *balancedSumTracker) Quality() float64 {
 	return b.sumTracker.Quality() * float64(b.leftCount*b.rightCount)
-}
-
-// A meanTracker is a splitTracker for MeanAlgorithm.
-type meanTracker struct {
-	sumTracker sumTracker
-	leftCount  int
-	rightCount int
-}
-
-func (m *meanTracker) Reset(rightSamples []*gradientSample) {
-	m.sumTracker.Reset(rightSamples)
-	m.leftCount = 0
-	m.rightCount = len(rightSamples)
-}
-
-func (m *meanTracker) MoveToLeft(sample *gradientSample) {
-	m.sumTracker.MoveToLeft(sample)
-	m.leftCount++
-	m.rightCount--
-}
-
-func (m *meanTracker) Quality() float64 {
-	s := &m.sumTracker
-	sums := []smallVec{s.leftSum, s.rightSum}
-	counts := []int{m.leftCount, m.rightCount}
-
-	var sum float64
-	for i, vec := range sums {
-		sum += vec.Dot(vec) / float64(counts[i])
-	}
-
-	return sum
 }
 
 // A mseTracker is a splitTracker for MSEAlgorithm.
