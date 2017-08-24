@@ -50,11 +50,15 @@ func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 			CloseEnvs(res)
 			return nil, err
 		}
-		res = append(res, &atariEnv{
+		var realEnv Env = &atariEnv{
 			Env:    env,
 			Closer: client,
 			RAM:    strings.Contains(g.Name, "-ram"),
-		})
+		}
+		if g.History {
+			realEnv = &historyEnv{Env: realEnv}
+		}
+		res = append(res, realEnv)
 	}
 	return res, nil
 }

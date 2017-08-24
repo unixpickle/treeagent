@@ -60,6 +60,11 @@ type GameFlags struct {
 	// GymHost is the destination host for an instance of
 	// gym-socket-api.
 	GymHost string
+
+	// History, if true, indicates that the previous
+	// observation should be concatenated with the current
+	// one to form a bigger observation.
+	History bool
 }
 
 // AddFlags adds the options to the flag package's global
@@ -70,4 +75,5 @@ func (g *GameFlags) AddFlags() {
 	flag.DurationVar(&g.FrameTime, "frametime", time.Second/8,
 		"time per step (muniverse only)")
 	flag.StringVar(&g.GymHost, "gym", "localhost:5001", "host for gym-socket-api")
+	flag.BoolVar(&g.History, "history", false, "use both current and last observation")
 }

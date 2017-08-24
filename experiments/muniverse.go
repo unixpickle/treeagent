@@ -42,11 +42,15 @@ func newMuniverseEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 			env = muniverse.RecordEnv(env, g.RecordDir)
 		}
 
-		res = append(res, &muniverseEnv{
+		var realEnv Env = &muniverseEnv{
 			Env:         env,
 			Creator:     c,
 			TimePerStep: g.FrameTime,
-		})
+		}
+		if g.History {
+			realEnv = &historyEnv{Env: realEnv}
+		}
+		res = append(res, realEnv)
 	}
 
 	return res, nil
