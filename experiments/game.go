@@ -53,7 +53,7 @@ func LookupGameInfo(name string) (*GameInfo, error) {
 			ParamSize:   numActions,
 			Width:       atariWidth,
 			Height:      atariHeight,
-			NumFeatures: atariWidth * atariHeight,
+			NumFeatures: atariObsSize(name),
 			Atari:       true,
 		}, nil
 	}
