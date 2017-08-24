@@ -52,7 +52,7 @@ func (h *historyEnv) nextObs(obs anyvec.Vector) anyvec.Vector {
 	if obs == nil {
 		return nil
 	}
-	res := obs.Creator().Concat(h.lastObs, obs)
+	res := obs.Creator().Concat(obs, h.lastObs)
 	h.lastObs = obs
 	return res
 }
