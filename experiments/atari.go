@@ -45,7 +45,7 @@ func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 			CloseEnvs(res)
 			return nil, err
 		}
-		env, err := anyrl.GymEnv(c, client, false)
+		env, err := anyrl.GymEnv(c, client, g.GymRender)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err

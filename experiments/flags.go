@@ -65,6 +65,10 @@ type GameFlags struct {
 	// observation should be concatenated with the current
 	// one to form a bigger observation.
 	History bool
+
+	// GymRender, if true, indicates that Gym environments
+	// should be displayed in a UI window.
+	GymRender bool
 }
 
 // AddFlags adds the options to the flag package's global
@@ -75,5 +79,6 @@ func (g *GameFlags) AddFlags() {
 	flag.DurationVar(&g.FrameTime, "frametime", time.Second/8,
 		"time per step (muniverse only)")
 	flag.StringVar(&g.GymHost, "gym", "localhost:5001", "host for gym-socket-api")
+	flag.BoolVar(&g.GymRender, "render", false, "render Gym environments in UI windows")
 	flag.BoolVar(&g.History, "history", false, "use both current and last observation")
 }

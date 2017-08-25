@@ -40,3 +40,7 @@ Here is a high-level log of what I've been trying and what experiments I've run:
  * Played with different splitting criteria to investigate cosine distance. Realized that MSE is equivalent to maximizing cosine distance at every split. Noticed because of [this tracker I implemented](https://gist.github.com/unixpickle/2e3a4358c1c9565466198b7a410ab82f), which had behavior equivalent to MSE.
  * Implemented restriction on minimum samples in a leaf. Thus, we can force MSE to give us more balanced trees. If each leaf has enough nodes, ideally the expectation assumptions from policy gradient will hold.
  * Trained a Pong-v0 agent overnight with MSE and a step size of 0.5. By morning, reward was mid -18's and entropy was ~1.71 (higher than most other models I've trained overnight). I hypothesize that the step size I chose was too small. Trying further training with larger step sizes (e.g. 2) and larger batch sizes (50K instead of 4K).
+ * Results from another day of training:
+   * Pong-v0: up to ~-14.5 on the best attempt.
+   * Pong-ram-v0: up to ~-14.8 on the best attempt.
+   * Breakout-ram-v0: up to ~8 on best attempt. Another attempt got stuck at ~6. Maybe too big learning rate / too little regularization. On the ~6 one, paddle pretty much stays at the sides of the screen most of the time (crosses the screen fairly quickly).
