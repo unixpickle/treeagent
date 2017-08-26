@@ -54,3 +54,4 @@ Here is a high-level log of what I've been trying and what experiments I've run:
    * Hypothesis: forest size is the cause. Huge forests might be hard to improve?
    * Plan: implement tree decay and pruning. Can keep the forest fairly small. Will it work? Idk.
  * New theory: the value function needs pruning, but not necessarily the policy. Deleting the critic.json file after a while of training speeds up training that seems to have stalled.
+ * Training overnight on Breakout-ram-v0 with a value function decay rate of 0.99 has resulted in a mean reward of ~16, nearly twice as much as any previous attempts. Training has been slow since about ~13, but it is still ongoing. Mean entropy is down to about 1.11.
