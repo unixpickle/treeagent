@@ -42,8 +42,8 @@ func (f *Forest) Scale(scale float64) {
 
 // RemoveFirst removes the first tree from the forest.
 func (f *Forest) RemoveFirst() {
-	essentials.OrderedDelete(f.Trees, 0)
-	essentials.OrderedDelete(f.Weights, 0)
+	essentials.OrderedDelete(&f.Trees, 0)
+	essentials.OrderedDelete(&f.Weights, 0)
 }
 
 // Apply runs the features through each Tree and produces
