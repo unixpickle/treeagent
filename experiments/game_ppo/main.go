@@ -141,6 +141,7 @@ func main() {
 			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
+				decayForest(flags, policy)
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				if flags.CoordDesc {
 					ppo.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
@@ -150,7 +151,6 @@ func main() {
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)
 				}
-				decayForest(flags, policy)
 				policy.Add(tree, flags.StepSize)
 			}
 
@@ -159,10 +159,10 @@ func main() {
 			sampleChan = treeagent.Uint8Samples(rawSamples)
 			samples = treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.ValIters; i++ {
+				decayForest(flags, valueFunc)
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				tree, loss := judger.Train(minibatch, flags.Depth)
 				step := judger.OptimalWeight(samples, tree) * flags.ValStep
-				decayForest(flags, valueFunc)
 				valueFunc.Add(tree, step)
 				log.Printf("step %d: mse=%f step=%f", i, loss, step)
 			}
