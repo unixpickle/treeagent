@@ -30,6 +30,8 @@ type Flags struct {
 
 	Depth       int
 	MinLeaf     int
+	TreeDecay   float64
+	MaxTrees    int
 	StepSize    float64
 	ValStep     float64
 	Discount    float64
@@ -56,6 +58,8 @@ func main() {
 		"parallel environments")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
+	flag.Float64Var(&flags.TreeDecay, "decay", 1, "tree decay rate")
+	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max forest size before pruning")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
@@ -146,6 +150,7 @@ func main() {
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)
 				}
+				decayForest(flags, policy)
 				policy.Add(tree, flags.StepSize)
 			}
 
@@ -157,6 +162,7 @@ func main() {
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				tree, loss := judger.Train(minibatch, flags.Depth)
 				step := judger.OptimalWeight(samples, tree) * flags.ValStep
+				decayForest(flags, valueFunc)
 				valueFunc.Add(tree, step)
 				log.Printf("step %d: mse=%f step=%f", i, loss, step)
 			}
@@ -199,6 +205,15 @@ func loadOrCreateForest(flags *Flags, path string, dims int) *treeagent.Forest {
 	must(json.Unmarshal(data, &res))
 	log.Println("Loaded forest from:", path)
 	return res
+}
+
+func decayForest(flags *Flags, forest *treeagent.Forest) {
+	if flags.TreeDecay < 1 {
+		forest.Scale(flags.TreeDecay)
+	}
+	if flags.MaxTrees > 0 && len(forest.Trees) >= flags.MaxTrees {
+		forest.RemoveFirst()
+	}
 }
 
 func must(err error) {

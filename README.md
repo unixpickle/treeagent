@@ -44,3 +44,12 @@ Here is a high-level log of what I've been trying and what experiments I've run:
    * Pong-v0: up to ~-14.5 on the best attempt.
    * Pong-ram-v0: up to ~-14.8 on the best attempt.
    * Breakout-ram-v0: up to ~8 on best attempt. Another attempt got stuck at ~6. Maybe too big learning rate / too little regularization. On the ~6 one, paddle pretty much stays at the sides of the screen most of the time (crosses the screen fairly quickly).
+ * Ran a bunch of experiments with Breakout-ram-v0.
+   * Those with a learning rate of 0.1 got up to ~2.7-3.7.
+   * Those with a learning rate of 0.5 got up to ~6-8 in the same amount of time.
+   * Batch size was 30K. Found that minleaf=512 is way better than minleaf=128.
+   * After an initial performance explosion, all models pretty much stopped learning.
+   * Reducing entropy didn't help much, nor did decreasing learning rate.
+ * Conclusion: after the first ~80 batches, improvement always stops, regardless of learning rate.
+   * Hypothesis: forest size is the cause. Huge forests might be hard to improve?
+   * Plan: implement tree decay and pruning. Can keep the forest fairly small. Will it work? Idk.

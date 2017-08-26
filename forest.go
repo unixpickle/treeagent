@@ -1,6 +1,9 @@
 package treeagent
 
-import "github.com/unixpickle/anyvec"
+import (
+	"github.com/unixpickle/anyvec"
+	"github.com/unixpickle/essentials"
+)
 
 // ActionParams is a probability distribution represented
 // as parameters for an action distribution.
@@ -28,6 +31,19 @@ func NewForest(paramDim int) *Forest {
 func (f *Forest) Add(tree *Tree, weight float64) {
 	f.Trees = append(f.Trees, tree)
 	f.Weights = append(f.Weights, weight)
+}
+
+// Scale scales all the weights by the given value.
+func (f *Forest) Scale(scale float64) {
+	for i := range f.Weights {
+		f.Weights[i] *= scale
+	}
+}
+
+// RemoveFirst removes the first tree from the forest.
+func (f *Forest) RemoveFirst() {
+	essentials.OrderedDelete(f.Trees, 0)
+	essentials.OrderedDelete(f.Weights, 0)
 }
 
 // Apply runs the features through each Tree and produces
