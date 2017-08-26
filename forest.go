@@ -85,16 +85,16 @@ func (f *Forest) applyBatch(in anyvec.Vector, batch int) anyvec.Vector {
 //
 // A Tree is either a leaf node or a branching node.
 type Tree struct {
-	Leaf bool
+	Leaf bool `json:",omitempty"`
 
 	// Information for leaf nodes.
-	Params ActionParams
+	Params ActionParams `json:",omitempty"`
 
 	// Information for branching nodes.
-	Feature      int
-	Threshold    float64
-	LessThan     *Tree
-	GreaterEqual *Tree
+	Feature      int     `json:",omitempty"`
+	Threshold    float64 `json:",omitempty"`
+	LessThan     *Tree   `json:",omitempty"`
+	GreaterEqual *Tree   `json:",omitempty"`
 }
 
 // Find finds the leaf parameters for the features.
