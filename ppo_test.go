@@ -56,14 +56,14 @@ func BenchmarkPPO(b *testing.B) {
 	names := []string{"ManyFeatures", "ManySamples"}
 	for i, name := range names {
 		b.Run(name, func(b *testing.B) {
-			benchmarkBuild(b, numFeatures[i], numSamples[i])
+			benchmarkBuild(b, numFeatures[i], numSamples[i], false)
 		})
 	}
 }
 
 func benchmarkPPO(b *testing.B, numFeatures, numSamples int) {
 	c := anyvec64.DefaultCreator{}
-	samples := benchmarkingSamples(c, numFeatures, numSamples)
+	samples := benchmarkingSamples(c, numFeatures, numSamples, false)
 	ppo := &PPO{
 		Builder: &Builder{
 			MaxDepth:    benchmarkDepth,
