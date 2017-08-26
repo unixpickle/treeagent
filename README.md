@@ -53,3 +53,4 @@ Here is a high-level log of what I've been trying and what experiments I've run:
  * Conclusion: after the first ~80 batches, improvement always stops, regardless of learning rate.
    * Hypothesis: forest size is the cause. Huge forests might be hard to improve?
    * Plan: implement tree decay and pruning. Can keep the forest fairly small. Will it work? Idk.
+ * New theory: the value function needs pruning, but not necessarily the policy. Deleting the critic.json file after a while of training speeds up training that seems to have stalled.

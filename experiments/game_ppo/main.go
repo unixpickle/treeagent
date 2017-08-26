@@ -58,8 +58,8 @@ func main() {
 		"parallel environments")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
-	flag.Float64Var(&flags.TreeDecay, "decay", 1, "tree decay rate")
-	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max forest size before pruning")
+	flag.Float64Var(&flags.TreeDecay, "decay", 1, "tree decay rate for value function")
+	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max trees in value function")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
@@ -141,7 +141,6 @@ func main() {
 			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.Iters; i++ {
-				decayForest(flags, policy)
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				if flags.CoordDesc {
 					ppo.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
