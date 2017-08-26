@@ -1,6 +1,9 @@
 package treeagent
 
 import (
+	"runtime"
+	"sync"
+
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 )
@@ -79,6 +82,27 @@ func (f *Forest) applyBatch(in anyvec.Vector, batch int) anyvec.Vector {
 	c := in.Creator()
 	vecData := c.MakeNumericList(outParams)
 	return c.MakeVectorData(vecData)
+}
+
+func (f *Forest) applySamples(samples []Sample) []ActionParams {
+	res := make([]ActionParams, len(samples))
+	indices := make(chan int, len(samples))
+	for i := range samples {
+		indices <- i
+	}
+	close(indices)
+	var wg sync.WaitGroup
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range indices {
+				res[i] = f.ApplyFeatureSource(samples[i])
+			}
+		}()
+	}
+	wg.Wait()
+	return res
 }
 
 // Tree is a node in a decision tree.

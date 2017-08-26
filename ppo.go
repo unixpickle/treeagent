@@ -42,10 +42,10 @@ func (p *PPO) Step(data []Sample, forest *Forest) (step *Tree, obj anyvec.Numeri
 // returns a variable containing every output vector.
 func (p *PPO) forestParams(samples []Sample, forest *Forest) *anydiff.Var {
 	c := samples[0].Action().Creator()
+	outputs := forest.applySamples(samples)
 	var outVecs []float64
-	for _, sample := range samples {
-		forestOut := forest.ApplyFeatureSource(sample)
-		outVecs = append(outVecs, forestOut...)
+	for _, out := range outputs {
+		outVecs = append(outVecs, out...)
 	}
 	return anydiff.NewVar(c.MakeVectorData(c.MakeNumericList(outVecs)))
 }

@@ -66,9 +66,9 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 	var gradSamples []*gradientSample
 	var loss float64
-	for _, sample := range data {
-		approximation := j.ValueFunc.ApplyFeatureSource(sample)[0]
-		grad := sample.Advantage() - approximation
+	outs := j.ValueFunc.applySamples(data)
+	for i, sample := range data {
+		grad := sample.Advantage() - outs[i][0]
 		gradSamples = append(gradSamples, &gradientSample{
 			Sample:   sample,
 			Gradient: []float64{grad},
@@ -91,9 +91,10 @@ func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 func (j *Judger) OptimalWeight(data []Sample, t *Tree) float64 {
 	var numerator float64
 	var denominator float64
-	for _, sample := range data {
+	outs := j.ValueFunc.applySamples(data)
+	for i, sample := range data {
 		out := t.FindFeatureSource(sample)[0]
-		approximation := j.ValueFunc.ApplyFeatureSource(sample)[0]
+		approximation := outs[i][0]
 		denominator += out * out
 		numerator += out * (sample.Advantage() - approximation)
 	}
