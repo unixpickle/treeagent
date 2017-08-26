@@ -10,7 +10,7 @@ import (
 )
 
 func TestMSETracker(t *testing.T) {
-	testTrackersEquivalent(t, &mseTracker{}, &naiveMSETracker{})
+	testTrackersEquivalent(t, &meanTracker{}, &naiveMSETracker{})
 }
 
 func TestStddevTracker(t *testing.T) {
