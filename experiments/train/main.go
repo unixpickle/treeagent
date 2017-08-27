@@ -22,7 +22,7 @@ import (
 )
 
 type Flags struct {
-	GameFlags experiments.GameFlags
+	EnvFlags  experiments.EnvFlags
 	Algorithm experiments.AlgorithmFlag
 
 	BatchSize    int
@@ -38,7 +38,7 @@ type Flags struct {
 
 func main() {
 	flags := &Flags{}
-	flags.GameFlags.AddFlags()
+	flags.EnvFlags.AddFlags()
 	flags.Algorithm.AddFlag()
 	flag.IntVar(&flags.BatchSize, "batch", 2048, "steps per batch")
 	flag.IntVar(&flags.ParallelEnvs, "numparallel", runtime.GOMAXPROCS(0),
@@ -56,7 +56,7 @@ func main() {
 	creator := anyvec32.CurrentCreator()
 
 	log.Println("Creating environments...")
-	envs, err := experiments.MakeGames(creator, &flags.GameFlags, flags.ParallelEnvs)
+	envs, err := experiments.MakeEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
 	must(err)
 
 	var judger anypg.ActionJudger
@@ -137,7 +137,7 @@ func loadOrCreatePolicy(flags *Flags) *treeagent.Forest {
 	data, err := ioutil.ReadFile(flags.SaveFile)
 	if err != nil {
 		log.Println("Created new policy.")
-		info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
+		info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 		return treeagent.NewForest(info.ParamSize)
 	}
 	var res *treeagent.Forest

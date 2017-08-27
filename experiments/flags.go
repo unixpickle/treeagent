@@ -42,9 +42,9 @@ func (a *AlgorithmFlag) AddFlag() {
 	flag.Var(a, "algo", "splitting heuristic ("+strings.Join(names, ", ")+")")
 }
 
-// GameFlags holds various parameters for creating game
+// EnvFlags holds various parameters for creating
 // environments.
-type GameFlags struct {
+type EnvFlags struct {
 	// Name is the name of the environment.
 	Name string
 
@@ -73,12 +73,12 @@ type GameFlags struct {
 
 // AddFlags adds the options to the flag package's global
 // set of flags.
-func (g *GameFlags) AddFlags() {
-	flag.StringVar(&g.Name, "env", "", "game environment name")
-	flag.StringVar(&g.RecordDir, "record", "", "muniverse recording directory")
-	flag.DurationVar(&g.FrameTime, "frametime", time.Second/8,
+func (e *EnvFlags) AddFlags() {
+	flag.StringVar(&e.Name, "env", "", "environment name")
+	flag.StringVar(&e.RecordDir, "record", "", "muniverse recording directory")
+	flag.DurationVar(&e.FrameTime, "frametime", time.Second/8,
 		"time per step (muniverse only)")
-	flag.StringVar(&g.GymHost, "gym", "localhost:5001", "host for gym-socket-api")
-	flag.BoolVar(&g.GymRender, "render", false, "render Gym environments in UI windows")
-	flag.BoolVar(&g.History, "history", false, "use both current and last observation")
+	flag.StringVar(&e.GymHost, "gym", "localhost:5001", "host for gym-socket-api")
+	flag.BoolVar(&e.GymRender, "render", false, "render Gym environments in UI windows")
+	flag.BoolVar(&e.History, "history", false, "use both current and last observation")
 }

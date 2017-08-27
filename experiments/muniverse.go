@@ -24,10 +24,10 @@ type muniverseEnv struct {
 }
 
 // newMuniverseEnvs creates n environment instances.
-func newMuniverseEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
-	spec := muniverse.SpecForName(g.Name)
+func newMuniverseEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
+	spec := muniverse.SpecForName(e.Name)
 	if spec == nil {
-		return nil, errors.New(`"` + g.Name + `" not found`)
+		return nil, errors.New(`"` + e.Name + `" not found`)
 	}
 
 	var res []Env
@@ -38,16 +38,16 @@ func newMuniverseEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 			return nil, err
 		}
 
-		if g.RecordDir != "" {
-			env = muniverse.RecordEnv(env, g.RecordDir)
+		if e.RecordDir != "" {
+			env = muniverse.RecordEnv(env, e.RecordDir)
 		}
 
 		var realEnv Env = &muniverseEnv{
 			Env:         env,
 			Creator:     c,
-			TimePerStep: g.FrameTime,
+			TimePerStep: e.FrameTime,
 		}
-		if g.History {
+		if e.History {
 			realEnv = &historyEnv{Env: realEnv}
 		}
 		res = append(res, realEnv)

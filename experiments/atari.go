@@ -37,15 +37,15 @@ type atariEnv struct {
 	RAM    bool
 }
 
-func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
+func newAtariEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
-		client, err := gym.Make(g.GymHost, g.Name)
+		client, err := gym.Make(e.GymHost, e.Name)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err
 		}
-		env, err := anyrl.GymEnv(c, client, g.GymRender)
+		env, err := anyrl.GymEnv(c, client, e.GymRender)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err
@@ -53,9 +53,9 @@ func newAtariEnvs(c anyvec.Creator, g *GameFlags, n int) ([]Env, error) {
 		var realEnv Env = &atariEnv{
 			Env:    env,
 			Closer: client,
-			RAM:    strings.Contains(g.Name, "-ram"),
+			RAM:    strings.Contains(e.Name, "-ram"),
 		}
-		if g.History {
+		if e.History {
 			realEnv = &historyEnv{Env: realEnv}
 		}
 		res = append(res, realEnv)
