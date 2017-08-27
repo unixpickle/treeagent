@@ -105,6 +105,7 @@ func (m *muniverseEnv) Step(action anyvec.Vector) (observation anyvec.Vector,
 	}
 	observation = m.simplifyImage(buffer)
 
+	m.timestep++
 	if time.Duration(m.timestep)*m.TimePerStep >= time.Minute {
 		done = true
 	}
