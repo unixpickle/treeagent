@@ -27,11 +27,9 @@ type Judger struct {
 	// https://arxiv.org/abs/1506.02438.
 	Lambda float64
 
-	// FeatureFrac is the fraction of features to try for
-	// each branching node.
-	//
-	// If 0, all features are tried.
+	// These options are the same as those in Builder.
 	FeatureFrac float64
+	MinLeaf     int
 }
 
 // JudgeActions produces advantage estimations.
@@ -78,6 +76,7 @@ func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 	builder := &Builder{
 		Algorithm:   MSEAlgorithm,
 		FeatureFrac: j.FeatureFrac,
+		MinLeaf:     j.MinLeaf,
 	}
 	mse := loss / float64(len(data))
 	return builder.buildTree(gradSamples, gradSamples, maxDepth), mse
