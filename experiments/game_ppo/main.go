@@ -100,6 +100,7 @@ func main() {
 		Discount:    flags.Discount,
 		Lambda:      flags.Lambda,
 		FeatureFrac: flags.FeatureFrac,
+		MinLeaf:     flags.MinLeaf,
 	}
 
 	ppo := &treeagent.PPO{

@@ -93,17 +93,7 @@ func Uint8Samples(incoming <-chan Sample) <-chan Sample {
 	go func() {
 		defer close(res)
 		for in := range incoming {
-			dim := in.NumFeatures()
-			sample := &uint8Sample{
-				features:     make([]uint8, dim),
-				action:       in.Action(),
-				actionParams: in.ActionParams(),
-				advantage:    in.Advantage(),
-			}
-			for i := 0; i < dim; i++ {
-				sample.features[i] = uint8(in.Feature(i))
-			}
-			res <- sample
+			res <- newUint8Sample(in)
 		}
 	}()
 	return res
@@ -164,6 +154,20 @@ type uint8Sample struct {
 	action       anyvec.Vector
 	actionParams anyvec.Vector
 	advantage    float64
+}
+
+func newUint8Sample(sample Sample) *uint8Sample {
+	dim := sample.NumFeatures()
+	res := &uint8Sample{
+		features:     make([]uint8, dim),
+		action:       sample.Action(),
+		actionParams: sample.ActionParams(),
+		advantage:    sample.Advantage(),
+	}
+	for i := 0; i < dim; i++ {
+		res.features[i] = uint8(sample.Feature(i))
+	}
+	return res
 }
 
 func (u *uint8Sample) Feature(idx int) float64 {

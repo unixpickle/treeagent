@@ -75,7 +75,7 @@ func (t TreeAlgorithm) splitTracker() splitTracker {
 	case SumAlgorithm:
 		return &sumTracker{}
 	case MSEAlgorithm:
-		return &mseTracker{}
+		return &meanTracker{}
 	case BalancedSumAlgorithm:
 		return &balancedSumTracker{}
 	case StddevAlgorithm:
@@ -132,65 +132,83 @@ func (s *sumTracker) Quality() float64 {
 	return sum
 }
 
-// A balancedSumTracker is a splitTracker for
-// BalancedSumAlgorithm.
-type balancedSumTracker struct {
-	sumTracker sumTracker
+// A meanTracker is a splitTracker for MSEAlgorithm.
+//
+// There are many equivalent ways to write this splitting
+// criterion.
+// This particular mean-based implementation was selected
+// for its fast MoveToLeft and Reset routines.
+type meanTracker struct {
+	sumTracker
 	leftCount  int
 	rightCount int
 }
 
-func (b *balancedSumTracker) Reset(rightSamples []*gradientSample) {
-	b.sumTracker.Reset(rightSamples)
-	b.leftCount = 0
-	b.rightCount = len(rightSamples)
+func (m *meanTracker) Reset(rightSamples []*gradientSample) {
+	m.sumTracker.Reset(rightSamples)
+	m.leftCount = 0
+	m.rightCount = len(rightSamples)
 }
 
-func (b *balancedSumTracker) MoveToLeft(sample *gradientSample) {
-	b.sumTracker.MoveToLeft(sample)
-	b.leftCount++
-	b.rightCount--
+func (m *meanTracker) MoveToLeft(sample *gradientSample) {
+	m.sumTracker.MoveToLeft(sample)
+	m.leftCount++
+	m.rightCount--
+}
+
+func (m *meanTracker) Quality() float64 {
+	sums := []smallVec{m.leftSum, m.rightSum}
+	counts := []int{m.leftCount, m.rightCount}
+
+	var sum float64
+	for i, vec := range sums {
+		sum += vec.Dot(vec) / float64(counts[i])
+	}
+
+	return sum
+}
+
+// A balancedSumTracker is a splitTracker for
+// BalancedSumAlgorithm.
+type balancedSumTracker struct {
+	meanTracker
 }
 
 func (b *balancedSumTracker) Quality() float64 {
 	return b.sumTracker.Quality() * float64(b.leftCount*b.rightCount)
 }
 
-// A mseTracker is a splitTracker for MSEAlgorithm.
-type mseTracker struct {
-	sumTracker   sumTracker
+// A stddevTracker is a splitTracker for StddevAlgorithm.
+type stddevTracker struct {
+	meanTracker
 	leftSquares  float64
 	rightSquares float64
-	leftCount    int
-	rightCount   int
 }
 
-func (m *mseTracker) Reset(rightSamples []*gradientSample) {
-	m.sumTracker.Reset(rightSamples)
-	m.leftSquares = 0
-	m.rightSquares = 0
+func (s *stddevTracker) Reset(rightSamples []*gradientSample) {
+	s.meanTracker.Reset(rightSamples)
+	s.leftSquares = 0
+	s.rightSquares = 0
 	for _, sample := range rightSamples {
-		m.rightSquares += sample.Gradient.Dot(sample.Gradient)
+		s.rightSquares += sample.Gradient.Dot(sample.Gradient)
 	}
-	m.leftCount = 0
-	m.rightCount = len(rightSamples)
 }
 
-func (m *mseTracker) MoveToLeft(sample *gradientSample) {
-	m.sumTracker.MoveToLeft(sample)
+func (s *stddevTracker) MoveToLeft(sample *gradientSample) {
+	s.meanTracker.MoveToLeft(sample)
 	sq := sample.Gradient.Dot(sample.Gradient)
-	m.leftSquares += sq
-	m.rightSquares -= sq
-	m.leftCount++
-	m.rightCount--
+	s.leftSquares += sq
+	s.rightSquares -= sq
 }
 
-func (m *mseTracker) Quality() float64 {
-	left, right := m.leftRightErrors()
-	return -(left + right)
+func (s *stddevTracker) Quality() float64 {
+	// Equivalent to minimizing N1*stddev1 + N2*stddev2
+	left, right := s.leftRightErrors()
+	return -(math.Sqrt(float64(s.leftCount)*left) +
+		math.Sqrt(float64(s.rightCount)*right))
 }
 
-func (m *mseTracker) leftRightErrors() (left, right float64) {
+func (s *stddevTracker) leftRightErrors() (left, right float64) {
 	// The minimal MSE is equivalent to
 	//
 	//     Var(x) = E[X^2] - E^2[X]
@@ -200,9 +218,9 @@ func (m *mseTracker) leftRightErrors() (left, right float64) {
 	//     Error = (x1^2 + ... + xn^2) - (x1 + ... + xn)^2/n
 	//
 
-	sums := []smallVec{m.sumTracker.leftSum, m.sumTracker.rightSum}
-	sqSums := []float64{m.leftSquares, m.rightSquares}
-	counts := []int{m.leftCount, m.rightCount}
+	sums := []smallVec{s.sumTracker.leftSum, s.sumTracker.rightSum}
+	sqSums := []float64{s.leftSquares, s.rightSquares}
+	counts := []int{s.leftCount, s.rightCount}
 
 	reses := make([]float64, 2)
 	for i, sum := range sums {
@@ -214,18 +232,6 @@ func (m *mseTracker) leftRightErrors() (left, right float64) {
 	}
 
 	return reses[0], reses[1]
-}
-
-// stddevTracker is a splitTracker for StddevAlgorithm.
-type stddevTracker struct {
-	mseTracker
-}
-
-func (s *stddevTracker) Quality() float64 {
-	// Equivalent to minimizing N1*stddev1 + N2*stddev2
-	left, right := s.leftRightErrors()
-	return -(math.Sqrt(float64(s.leftCount)*left) +
-		math.Sqrt(float64(s.rightCount)*right))
 }
 
 // signTracker is a splitTracker for SignAlgorithm.

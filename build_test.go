@@ -129,16 +129,26 @@ func BenchmarkBuild(b *testing.B) {
 	numFeatures := []int{1000, 10}
 	numSamples := []int{100, 5000}
 	names := []string{"ManyFeatures", "ManySamples"}
+	byteObs := []bool{false, false}
+
+	if !testing.Short() {
+		// Simulate a batch of Pong frames.
+		numFeatures = append(numFeatures, 9600)
+		numSamples = append(numSamples, 4096)
+		byteObs = append(byteObs, true)
+		names = append(names, "Huge")
+	}
+
 	for i, name := range names {
 		b.Run(name, func(b *testing.B) {
-			benchmarkBuild(b, numFeatures[i], numSamples[i])
+			benchmarkBuild(b, numFeatures[i], numSamples[i], byteObs[i])
 		})
 	}
 }
 
-func benchmarkBuild(b *testing.B, numFeatures, numSamples int) {
+func benchmarkBuild(b *testing.B, numFeatures, numSamples int, byteObs bool) {
 	c := anyvec64.DefaultCreator{}
-	samples := benchmarkingSamples(c, numFeatures, numSamples)
+	samples := benchmarkingSamples(c, numFeatures, numSamples, byteObs)
 	builder := &Builder{
 		MaxDepth:    benchmarkDepth,
 		ActionSpace: anyrl.Softmax{},
@@ -162,7 +172,8 @@ func benchmarkBuild(b *testing.B, numFeatures, numSamples int) {
 	}
 }
 
-func benchmarkingSamples(c anyvec.Creator, numFeatures, numSamples int) []Sample {
+func benchmarkingSamples(c anyvec.Creator, numFeatures, numSamples int,
+	byteObs bool) []Sample {
 	var samples []Sample
 	for i := 0; i < numSamples; i++ {
 		sample := &memorySample{
@@ -172,11 +183,22 @@ func benchmarkingSamples(c anyvec.Creator, numFeatures, numSamples int) []Sample
 			advantage:    rand.NormFloat64(),
 		}
 		for i := range sample.features {
-			sample.features[i] = rand.NormFloat64()
+			if byteObs {
+				sample.features[i] = float64(rand.Intn(0x100))
+			} else {
+				sample.features[i] = rand.NormFloat64()
+			}
 		}
 		idx := rand.Intn(2)
 		sample.action.Slice(idx, idx+1).AddScalar(1.0)
 		samples = append(samples, sample)
 	}
+
+	if byteObs {
+		for i, sample := range samples {
+			samples[i] = newUint8Sample(sample)
+		}
+	}
+
 	return samples
 }
