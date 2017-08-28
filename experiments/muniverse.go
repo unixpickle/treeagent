@@ -21,6 +21,8 @@ type muniverseEnv struct {
 	TimePerStep time.Duration
 
 	timestep int
+
+	tapPressed bool
 }
 
 // newMuniverseEnvs creates n environment instances.
@@ -72,6 +74,7 @@ func (m *muniverseEnv) Reset() (observation anyvec.Vector, err error) {
 	}
 	observation = m.simplifyImage(buffer)
 	m.timestep = 0
+	m.tapPressed = false
 	return
 }
 
@@ -79,18 +82,7 @@ func (m *muniverseEnv) Reset() (observation anyvec.Vector, err error) {
 // screenshot of the environment.
 func (m *muniverseEnv) Step(action anyvec.Vector) (observation anyvec.Vector,
 	reward float64, done bool, err error) {
-	var events []interface{}
-	actionIdx := anyvec.MaxIndex(action)
-	actions := append([]string{""}, m.Env.Spec().KeyWhitelist...)
-	actionKey := actions[actionIdx]
-	if actionKey != "" {
-		evt := chrome.KeyEvents[actionKey]
-		evt1 := evt
-		evt.Type = chrome.KeyDown
-		evt1.Type = chrome.KeyUp
-		events = append(events, &evt, &evt1)
-	}
-
+	events := m.eventsForAction(action)
 	reward, done, err = m.Env.Step(m.TimePerStep, events...)
 	if err != nil {
 		return
@@ -114,6 +106,52 @@ func (m *muniverseEnv) Step(action anyvec.Vector) (observation anyvec.Vector,
 // Close shuts down the environment.
 func (m *muniverseEnv) Close() error {
 	return m.Env.Close()
+}
+
+func (m *muniverseEnv) eventsForAction(action anyvec.Vector) []interface{} {
+	actionIdx := anyvec.MaxIndex(action)
+	spec := m.Env.Spec()
+	if len(spec.KeyWhitelist) == 0 {
+		return m.tapEvents(actionIdx)
+	} else {
+		return m.keyEvents(actionIdx)
+	}
+}
+
+func (m *muniverseEnv) tapEvents(actionIdx int) []interface{} {
+	var events []interface{}
+	spec := m.Env.Spec()
+	evt := chrome.MouseEvent{
+		Type:       chrome.MousePressed,
+		X:          spec.Width / 2,
+		Y:          spec.Height / 2,
+		Button:     chrome.LeftButton,
+		ClickCount: 1,
+	}
+	press := actionIdx == 1
+	if press && !m.tapPressed {
+		events = append(events, &evt)
+	} else if !press && m.tapPressed {
+		evt.Type = chrome.MouseReleased
+		events = append(events, &evt)
+	}
+	m.tapPressed = press
+	return events
+}
+
+func (m *muniverseEnv) keyEvents(actionIdx int) []interface{} {
+	var events []interface{}
+	spec := m.Env.Spec()
+	actions := append([]string{""}, spec.KeyWhitelist...)
+	actionKey := actions[actionIdx]
+	if actionKey != "" {
+		evt := chrome.KeyEvents[actionKey]
+		evt1 := evt
+		evt.Type = chrome.KeyDown
+		evt1.Type = chrome.KeyUp
+		events = append(events, &evt, &evt1)
+	}
+	return events
 }
 
 func (m *muniverseEnv) simplifyImage(in []uint8) anyvec.Vector {

@@ -45,8 +45,7 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 	spec := muniverse.SpecForName(name)
 	if spec != nil {
 		w, h := muniverseDownsampledSize(spec.Width, spec.Height)
-		// TODO: support tap games with Bernoulli actions.
-		return &EnvInfo{
+		res := &EnvInfo{
 			Name:        name,
 			ActionSpace: anyrl.Softmax{},
 			ParamSize:   len(spec.KeyWhitelist) + 1,
@@ -54,7 +53,12 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 			Height:      h,
 			NumFeatures: w * h,
 			Muniverse:   true,
-		}, nil
+		}
+		if res.ParamSize == 1 {
+			// Support tapping games with no keyboard.
+			res.ActionSpace = &anyrl.Bernoulli{OneHot: true}
+		}
+		return res, nil
 	}
 
 	if numActions, ok := atariActionSizes[name]; ok {
