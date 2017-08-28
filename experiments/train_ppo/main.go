@@ -146,8 +146,8 @@ func main() {
 				if flags.CoordDesc {
 					ppo.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
 				}
-				tree, obj := ppo.Step(minibatch, policy)
-				log.Printf("step %d: objective=%v", i, obj)
+				tree, obj, reg := ppo.Step(minibatch, policy)
+				log.Printf("step %d: objective=%v reg=%v", i, obj, reg)
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)
 				}

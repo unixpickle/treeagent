@@ -9,7 +9,6 @@ import (
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 )
 
@@ -109,29 +108,22 @@ func (b *Builder) buildTree(data, allData []*gradientSample, depth int) *Tree {
 }
 
 func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
-	paramVecs := make([]anyvec.Vector, len(samples))
-	outVecs := make([]anyvec.Vector, len(samples))
-	advantages := make([]float64, len(samples))
-	for i, s := range samples {
-		paramVecs[i] = s.ActionParams()
-		outVecs[i] = s.Action()
-		advantages[i] = s.Advantage()
-	}
+	_, res := computeObjective(samples, nil, b.objective)
+	return b.maskGradients(res)
+}
 
-	c := paramVecs[0].Creator()
-	params := &anydiff.Var{Vector: c.Concat(paramVecs...)}
-	outs := c.Concat(outVecs...)
-	advs := anydiff.NewConst(c.MakeVectorData(c.MakeNumericList(advantages)))
-	probs := b.ActionSpace.LogProb(params, outs, len(samples))
+// objective implements the policy gradient objective
+// function with optional regularization.
+func (b *Builder) objective(params, old, acts, advs anydiff.Res, n int) anydiff.Res {
+	probs := b.ActionSpace.LogProb(params, acts.Output(), n)
 	obj := anydiff.Sum(anydiff.Mul(probs, advs))
 
 	if b.Regularizer != nil {
-		reg := b.Regularizer.Regularize(params, len(samples))
+		reg := b.Regularizer.Regularize(params, n)
 		obj = anydiff.Add(obj, anydiff.Sum(reg))
 	}
 
-	gradSamples := splitSampleGrads(samples, params, obj)
-	return b.maskGradients(gradSamples)
+	return obj
 }
 
 // optimalSplit finds the optimal split for the given
@@ -244,37 +236,4 @@ func betterSplit(s1, s2 *splitInfo) *splitInfo {
 	} else {
 		return s2
 	}
-}
-
-type gradientSample struct {
-	Sample
-	Gradient smallVec
-}
-
-// splitSampleGrads takes the gradient of obj with respect
-// to params and splits it up amongst the samples.
-func splitSampleGrads(samples []Sample, params *anydiff.Var,
-	obj anydiff.Res) []*gradientSample {
-	grad := anydiff.NewGrad(params)
-	obj.Propagate(anyvec.Ones(params.Output().Creator(), 1), grad)
-	gradVec := grad[params]
-	gradSize := gradVec.Len() / len(samples)
-
-	res := make([]*gradientSample, len(samples))
-	nativeGrad := vecToFloats(gradVec)
-	for i, s := range samples {
-		res[i] = &gradientSample{
-			Sample:   s,
-			Gradient: nativeGrad[i*gradSize : (i+1)*gradSize],
-		}
-	}
-	return res
-}
-
-func sumGradients(samples []*gradientSample) smallVec {
-	sum := samples[0].Gradient.Copy()
-	for _, sample := range samples[1:] {
-		sum.Add(sample.Gradient)
-	}
-	return sum
 }

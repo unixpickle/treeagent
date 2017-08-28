@@ -24,61 +24,38 @@ type PPO struct {
 
 // Step performs a single step of PPO on the samples.
 //
-// It returns a tree approximation of the gradient.
-// It also returns the current value of the surrogate
-// objective, which the tree is designed to maximize.
-func (p *PPO) Step(data []Sample, forest *Forest) (step *Tree, obj anyvec.Numeric) {
-	params := p.forestParams(data, forest)
-	objective := p.objective(data, params)
-	gradSamples := splitSampleGrads(data, params, objective)
-	c := objective.Output().Creator()
-	objMean := c.NumOps().Div(anyvec.Sum(objective.Output()),
-		c.MakeNumeric(float64(len(data))))
-	gradSamples = p.Builder.maskGradients(gradSamples)
-	return p.Builder.buildTree(gradSamples, gradSamples, p.Builder.MaxDepth), objMean
+// It returns a tree approximation of the gradient, the
+// mean objective, and the mean regulizer (or 0).
+func (p *PPO) Step(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) {
+	objective, grad := computeObjective(s, f, p.objective)
+	grad = p.Builder.maskGradients(grad)
+	objParts := vecToFloats(objective)
+	scaler := 1 / float64(len(s))
+	return p.Builder.buildTree(grad, grad, p.Builder.MaxDepth),
+		scaler * objParts[0], scaler * objParts[1]
 }
 
-// forestParams applies the forest to each sample and
-// returns a variable containing every output vector.
-func (p *PPO) forestParams(samples []Sample, forest *Forest) *anydiff.Var {
-	c := samples[0].Action().Creator()
-	outputs := forest.applySamples(samples)
-	var outVecs []float64
-	for _, out := range outputs {
-		outVecs = append(outVecs, out...)
-	}
-	return anydiff.NewVar(c.MakeVectorData(c.MakeNumericList(outVecs)))
-}
+// objective computes the mean PPO objective concatenated
+// with the regularization term (or 0).
+func (p *PPO) objective(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res {
+	c := params.Output().Creator()
 
-// objective computes the mean PPO objective.
-func (p *PPO) objective(samples []Sample, params anydiff.Res) anydiff.Res {
-	c := samples[0].Action().Creator()
-
-	oldParams := make([]anyvec.Vector, len(samples))
-	actions := make([]anyvec.Vector, len(samples))
-	advs := make([]float64, len(samples))
-	for i, sample := range samples {
-		advs[i] = sample.Advantage()
-		oldParams[i] = sample.ActionParams()
-		actions[i] = sample.Action()
-	}
-	oldParamRes := anydiff.NewConst(c.Concat(oldParams...))
-	actionsVec := c.Concat(actions...)
-	advRes := anydiff.NewConst(c.MakeVectorData(c.MakeNumericList(advs)))
-
-	oldProbs := p.Builder.ActionSpace.LogProb(oldParamRes, actionsVec, len(samples))
-	newProbs := p.Builder.ActionSpace.LogProb(params, actionsVec, len(samples))
+	oldProbs := p.Builder.ActionSpace.LogProb(oldParams, acts.Output(), n)
+	newProbs := p.Builder.ActionSpace.LogProb(params, acts.Output(), n)
 	ratios := anydiff.Exp(anydiff.Sub(newProbs, oldProbs))
 
 	epsilon := p.Epsilon
 	if epsilon == 0 {
 		epsilon = anypg.DefaultPPOEpsilon
 	}
-	obj := anypg.PPOObjective(c.MakeNumeric(epsilon), ratios, advRes)
+	obj := anydiff.Sum(anypg.PPOObjective(c.MakeNumeric(epsilon), ratios, advs))
 
 	if p.Builder.Regularizer != nil {
-		obj = anydiff.Add(obj, p.Builder.Regularizer.Regularize(params, len(samples)))
+		reg := p.Builder.Regularizer.Regularize(params, n)
+		obj = anydiff.Concat(obj, reg)
+	} else {
+		obj = anydiff.Concat(obj, anydiff.NewConst(c.MakeVector(1)))
 	}
 
-	return anydiff.Sum(obj)
+	return obj
 }

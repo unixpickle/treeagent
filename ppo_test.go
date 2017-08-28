@@ -20,7 +20,7 @@ func TestPPOMSE(t *testing.T) {
 			Algorithm:   MSEAlgorithm,
 		},
 	}
-	tree, _ := ppo.Step(samples, base)
+	tree, _, _ := ppo.Step(samples, base)
 	verifyTestingSamplesTree(t, tree)
 }
 
