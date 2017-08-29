@@ -161,7 +161,7 @@ func main() {
 
 				policy.AddWeights(grad, flags.TuneStep*tuneNorm)
 				numPruned := policy.PruneNegative()
-				log.Printf("tune %d: objective=%v reg=%v prune=%d", i,
+				log.Printf("tune %d: objective=%.5f reg=%.5f prune=%d", i,
 					obj, reg, numPruned)
 			}
 			for i := 0; i < flags.Iters; i++ {
@@ -170,7 +170,7 @@ func main() {
 					ppo.PG.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
 				}
 				tree, obj, reg := ppo.Build(minibatch, policy)
-				log.Printf("step %d: objective=%v reg=%v", i, obj, reg)
+				log.Printf("step %d: objective=%.5f reg=%.5f", i, obj, reg)
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)
 				}
