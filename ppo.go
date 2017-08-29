@@ -11,9 +11,9 @@ import (
 //
 // See the PPO paper: https://arxiv.org/abs/1707.06347.
 type PPO struct {
-	// Builder is used to configure how individual trees
-	// are built during PPO.
-	Builder *Builder
+	// PG is used to configure how individual trees are
+	// built during PPO.
+	PG PG
 
 	// Epsilon is the amount by which the probability ratio
 	// should change.
@@ -22,17 +22,12 @@ type PPO struct {
 	Epsilon float64
 }
 
-// Step performs a single step of PPO on the samples.
+// Build performs a single step of PPO on the samples.
 //
 // It returns a tree approximation of the gradient, the
 // mean objective, and the mean regulizer (or 0).
-func (p *PPO) Step(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) {
-	objective, grad := computeObjective(s, f, p.Objective)
-	grad = p.Builder.maskGradients(grad)
-	objParts := vecToFloats(objective)
-	scaler := 1 / float64(len(s))
-	return p.Builder.buildTree(grad, grad, p.Builder.MaxDepth),
-		scaler * objParts[0], scaler * objParts[1]
+func (p *PPO) Build(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) {
+	return p.PG.Builder.buildWithTerms(computeObjective(s, f, p.Objective))
 }
 
 // Objective computes the  PPO objective concatenated with
@@ -40,8 +35,8 @@ func (p *PPO) Step(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) 
 func (p *PPO) Objective(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res {
 	c := params.Output().Creator()
 
-	oldProbs := p.Builder.ActionSpace.LogProb(oldParams, acts.Output(), n)
-	newProbs := p.Builder.ActionSpace.LogProb(params, acts.Output(), n)
+	oldProbs := p.PG.ActionSpace.LogProb(oldParams, acts.Output(), n)
+	newProbs := p.PG.ActionSpace.LogProb(params, acts.Output(), n)
 	ratios := anydiff.Exp(anydiff.Sub(newProbs, oldProbs))
 
 	epsilon := p.Epsilon
@@ -50,8 +45,8 @@ func (p *PPO) Objective(params, oldParams, acts, advs anydiff.Res, n int) anydif
 	}
 	obj := anydiff.Sum(anypg.PPOObjective(c.MakeNumeric(epsilon), ratios, advs))
 
-	if p.Builder.Regularizer != nil {
-		reg := p.Builder.Regularizer.Regularize(params, n)
+	if p.PG.Regularizer != nil {
+		reg := p.PG.Regularizer.Regularize(params, n)
 		obj = anydiff.Concat(obj, anydiff.Sum(reg))
 	} else {
 		obj = anydiff.Concat(obj, anydiff.NewConst(c.MakeVector(1)))

@@ -14,13 +14,15 @@ func TestPPOMSE(t *testing.T) {
 	base := testingRandomForest()
 	samples := testingSamples(c, 5000, base)
 	ppo := &PPO{
-		Builder: &Builder{
-			MaxDepth:    2,
+		PG: PG{
+			Builder: Builder{
+				Algorithm: MSEAlgorithm,
+				MaxDepth:  2,
+			},
 			ActionSpace: anyrl.Softmax{},
-			Algorithm:   MSEAlgorithm,
 		},
 	}
-	tree, _, _ := ppo.Step(samples, base)
+	tree, _, _ := ppo.Build(samples, base)
 	verifyTestingSamplesTree(t, tree)
 }
 
@@ -56,7 +58,7 @@ func BenchmarkPPO(b *testing.B) {
 	names := []string{"ManyFeatures", "ManySamples"}
 	for i, name := range names {
 		b.Run(name, func(b *testing.B) {
-			benchmarkBuild(b, numFeatures[i], numSamples[i], false)
+			benchmarkPPO(b, numFeatures[i], numSamples[i])
 		})
 	}
 }
@@ -65,8 +67,10 @@ func benchmarkPPO(b *testing.B, numFeatures, numSamples int) {
 	c := anyvec64.DefaultCreator{}
 	samples := benchmarkingSamples(c, numFeatures, numSamples, false)
 	ppo := &PPO{
-		Builder: &Builder{
-			MaxDepth:    benchmarkDepth,
+		PG: PG{
+			Builder: Builder{
+				MaxDepth: benchmarkDepth,
+			},
 			ActionSpace: anyrl.Softmax{},
 		},
 	}
@@ -84,7 +88,7 @@ func benchmarkPPO(b *testing.B, numFeatures, numSamples int) {
 				defer runtime.GOMAXPROCS(old)
 			}
 			for i := 0; i < b.N; i++ {
-				ppo.Step(samples, base)
+				ppo.Build(samples, base)
 			}
 		})
 	}

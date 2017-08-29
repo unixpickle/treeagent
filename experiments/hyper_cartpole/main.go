@@ -54,8 +54,10 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 	}
 
 	// Setup a way to build trees.
-	builder := &treeagent.Builder{
-		MaxDepth:    depth,
+	pg := &treeagent.PG{
+		Builder: treeagent.Builder{
+			MaxDepth: depth,
+		},
 		ActionSpace: anyrl.Softmax{},
 	}
 
@@ -83,7 +85,7 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 		// Train on the rollouts.
 		judger := anypg.TotalJudger{Normalize: true}
 		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
-		tree := builder.Build(treeagent.AllSamples(samples))
+		tree, _, _ := pg.Build(treeagent.AllSamples(samples))
 		roller.Policy.Add(tree, currentStep)
 		currentStep *= stepDecay
 	}

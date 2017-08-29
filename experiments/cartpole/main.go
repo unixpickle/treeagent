@@ -44,10 +44,12 @@ func main() {
 	}
 
 	// Setup a way to build trees.
-	builder := &treeagent.Builder{
-		MaxDepth:    Depth,
+	pg := &treeagent.PG{
+		Builder: treeagent.Builder{
+			MaxDepth:  Depth,
+			Algorithm: treeagent.MSEAlgorithm,
+		},
 		ActionSpace: actionSpace,
-		Algorithm:   treeagent.MSEAlgorithm,
 	}
 
 	var step float64 = StepSize
@@ -69,7 +71,7 @@ func main() {
 		// Train on the rollouts.
 		judger := anypg.TotalJudger{Normalize: true}
 		samples := treeagent.RolloutSamples(r, judger.JudgeActions(r))
-		tree := builder.Build(treeagent.AllSamples(samples))
+		tree, _, _ := pg.Build(treeagent.AllSamples(samples))
 		roller.Policy.Add(tree, step)
 		step *= StepDecay
 	}

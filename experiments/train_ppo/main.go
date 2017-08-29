@@ -104,16 +104,18 @@ func main() {
 	}
 
 	ppo := &treeagent.PPO{
-		Builder: &treeagent.Builder{
-			MaxDepth:    flags.Depth,
+		PG: treeagent.PG{
+			Builder: treeagent.Builder{
+				MaxDepth:    flags.Depth,
+				Algorithm:   flags.Algorithm.Algorithm,
+				FeatureFrac: flags.FeatureFrac,
+				MinLeaf:     flags.MinLeaf,
+			},
 			ActionSpace: info.ActionSpace,
 			Regularizer: &anypg.EntropyReg{
 				Entropyer: info.ActionSpace,
 				Coeff:     flags.EntropyReg,
 			},
-			Algorithm:   flags.Algorithm.Algorithm,
-			FeatureFrac: flags.FeatureFrac,
-			MinLeaf:     flags.MinLeaf,
 		},
 		Epsilon: flags.Epsilon,
 	}
@@ -144,9 +146,9 @@ func main() {
 			for i := 0; i < flags.Iters; i++ {
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				if flags.CoordDesc {
-					ppo.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
+					ppo.PG.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
 				}
-				tree, obj, reg := ppo.Step(minibatch, policy)
+				tree, obj, reg := ppo.Build(minibatch, policy)
 				log.Printf("step %d: objective=%v reg=%v", i, obj, reg)
 				if flags.SignOnly {
 					tree = treeagent.SignTree(tree)

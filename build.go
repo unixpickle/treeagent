@@ -6,27 +6,17 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/unixpickle/anydiff"
-	"github.com/unixpickle/anyrl"
-	"github.com/unixpickle/anyrl/anypg"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 )
 
-// A Builder builds decision trees to improve on Forest
-// policies.
+// A Builder stores parameters for building trees.
 type Builder struct {
 	// MaxDepth is the maximum tree depth.
 	MaxDepth int
 
-	// ActionSpace is used to determine the probability of
-	// actions given the action parameters.
-	ActionSpace anyrl.LogProber
-
-	// Regularizer, if non-nil, is used to regularize the
-	// action distributions of the policy.
-	Regularizer anypg.Regularizer
-
-	// Algorithm specifies how to build the tree.
+	// Algorithm determines how to splits and leaf values
+	// are chosen.
 	Algorithm TreeAlgorithm
 
 	// FeatureFrac is the fraction of features to try for
@@ -41,33 +31,35 @@ type Builder struct {
 	// two branches gets fewer than MinLeaf samples.
 	MinLeaf int
 
-	// ParamWhitelist, if non-nil, specifies the parameter
-	// indices to target with the trees.
-	// All parameters which are not specified will be 0.
+	// ParamWhitelist specifies the parameter indices to
+	// target with the trees.
+	// Only parameters in the whitelist will be non-zero
+	// in the leaf nodes.
+	//
+	// If nil, all parameters are used.
 	ParamWhitelist []int
 }
 
-// Build builds a tree based on the training data.
-func (b *Builder) Build(data []Sample) *Tree {
-	gradData := b.gradientSamples(data)
-	return b.buildTree(gradData, gradData, b.MaxDepth)
+// build builds a tree to match the gradients.
+// It may modify the gradients of the data.
+func (b *Builder) build(data []*gradientSample) *Tree {
+	data = b.maskGradients(data)
+	return b.buildRecursive(data, data, b.MaxDepth)
 }
 
-// Objective implements the policy gradient objective
-// function with optional regularization.
-func (b *Builder) Objective(params, old, acts, advs anydiff.Res, n int) anydiff.Res {
-	probs := b.ActionSpace.LogProb(params, acts.Output(), n)
-	obj := anydiff.Sum(anydiff.Mul(probs, advs))
-
-	if b.Regularizer != nil {
-		reg := b.Regularizer.Regularize(params, n)
-		obj = anydiff.Add(obj, anydiff.Sum(reg))
-	}
-
-	return obj
+// buildWithTerms is like build, but it also returns the
+// surrogate objective and regularization terms.
+// It is assumed that objAndReg contains two components,
+// the first of which is the objective and the second of
+// which is the regularization term.
+func (b *Builder) buildWithTerms(objAndReg anyvec.Vector,
+	data []*gradientSample) (tree *Tree, obj, reg anyvec.Numeric) {
+	objParts := vecToFloats(objAndReg)
+	scaler := 1 / float64(len(data))
+	return b.build(data), scaler * objParts[0], scaler * objParts[1]
 }
 
-func (b *Builder) buildTree(data, allData []*gradientSample, depth int) *Tree {
+func (b *Builder) buildRecursive(data, allData []*gradientSample, depth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
 	} else if depth == 0 || len(data) == 1 {
@@ -110,20 +102,15 @@ func (b *Builder) buildTree(data, allData []*gradientSample, depth int) *Tree {
 
 	if bestSplit == nil {
 		// If no split can help, create a leaf.
-		return b.buildTree(data, allData, 0)
+		return b.buildRecursive(data, allData, 0)
 	}
 
 	return &Tree{
 		Feature:      bestSplit.Feature,
 		Threshold:    bestSplit.Threshold,
-		LessThan:     b.buildTree(bestSplit.LeftSamples, allData, depth-1),
-		GreaterEqual: b.buildTree(bestSplit.RightSamples, allData, depth-1),
+		LessThan:     b.buildRecursive(bestSplit.LeftSamples, allData, depth-1),
+		GreaterEqual: b.buildRecursive(bestSplit.RightSamples, allData, depth-1),
 	}
-}
-
-func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
-	_, res := computeObjective(samples, nil, b.Objective)
-	return b.maskGradients(res)
 }
 
 // optimalSplit finds the optimal split for the given

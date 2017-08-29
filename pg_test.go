@@ -15,15 +15,17 @@ const (
 	benchmarkDepth = 3
 )
 
-func TestBuildMSE(t *testing.T) {
+func TestPGBuildMSE(t *testing.T) {
 	c := anyvec64.DefaultCreator{}
 	samples := testingSamples(c, 5000, nil)
-	builder := &Builder{
-		MaxDepth:    2,
+	builder := &PG{
+		Builder: Builder{
+			MaxDepth:  2,
+			Algorithm: MSEAlgorithm,
+		},
 		ActionSpace: anyrl.Softmax{},
-		Algorithm:   MSEAlgorithm,
 	}
-	tree := builder.Build(samples)
+	tree, _, _ := builder.Build(samples)
 	verifyTestingSamplesTree(t, tree)
 }
 
@@ -125,7 +127,7 @@ func verifyTestingSamplesTree(t *testing.T, tree *Tree) {
 	}
 }
 
-func BenchmarkBuild(b *testing.B) {
+func BenchmarkPGBuild(b *testing.B) {
 	numFeatures := []int{1000, 10}
 	numSamples := []int{100, 5000}
 	names := []string{"ManyFeatures", "ManySamples"}
@@ -141,16 +143,18 @@ func BenchmarkBuild(b *testing.B) {
 
 	for i, name := range names {
 		b.Run(name, func(b *testing.B) {
-			benchmarkBuild(b, numFeatures[i], numSamples[i], byteObs[i])
+			benchmarkPGBuild(b, numFeatures[i], numSamples[i], byteObs[i])
 		})
 	}
 }
 
-func benchmarkBuild(b *testing.B, numFeatures, numSamples int, byteObs bool) {
+func benchmarkPGBuild(b *testing.B, numFeatures, numSamples int, byteObs bool) {
 	c := anyvec64.DefaultCreator{}
 	samples := benchmarkingSamples(c, numFeatures, numSamples, byteObs)
-	builder := &Builder{
-		MaxDepth:    benchmarkDepth,
+	builder := &PG{
+		Builder: Builder{
+			MaxDepth: benchmarkDepth,
+		},
 		ActionSpace: anyrl.Softmax{},
 	}
 

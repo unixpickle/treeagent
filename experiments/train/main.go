@@ -77,15 +77,17 @@ func main() {
 		},
 	}
 
-	builder := &treeagent.Builder{
-		MaxDepth:    flags.Depth,
+	pg := &treeagent.PG{
+		Builder: treeagent.Builder{
+			MaxDepth:  flags.Depth,
+			Algorithm: flags.Algorithm.Algorithm,
+			MinLeaf:   flags.MinLeaf,
+		},
 		ActionSpace: actionSpace,
 		Regularizer: &anypg.EntropyReg{
 			Entropyer: actionSpace,
 			Coeff:     flags.EntropyReg,
 		},
-		Algorithm: flags.Algorithm.Algorithm,
-		MinLeaf:   flags.MinLeaf,
 	}
 
 	// Train on a background goroutine so that we can
@@ -111,7 +113,7 @@ func main() {
 			advantages := judger.JudgeActions(rollouts)
 			rawSamples := treeagent.RolloutSamples(rollouts, advantages)
 			samples := treeagent.Uint8Samples(rawSamples)
-			tree := builder.Build(treeagent.AllSamples(samples))
+			tree, _, _ := pg.Build(treeagent.AllSamples(samples))
 			if flags.SignOnly {
 				tree = treeagent.SignTree(tree)
 			}
