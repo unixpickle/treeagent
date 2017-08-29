@@ -52,7 +52,7 @@ func (p *PPO) objective(params, oldParams, acts, advs anydiff.Res, n int) anydif
 
 	if p.Builder.Regularizer != nil {
 		reg := p.Builder.Regularizer.Regularize(params, n)
-		obj = anydiff.Concat(obj, reg)
+		obj = anydiff.Concat(obj, anydiff.Sum(reg))
 	} else {
 		obj = anydiff.Concat(obj, anydiff.NewConst(c.MakeVector(1)))
 	}
