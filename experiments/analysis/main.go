@@ -18,7 +18,7 @@ import (
 )
 
 type Flags struct {
-	GameFlags experiments.GameFlags
+	EnvFlags experiments.EnvFlags
 
 	Discount     float64
 	Unnormalized bool
@@ -36,7 +36,7 @@ type Flags struct {
 
 func main() {
 	var flags Flags
-	flags.GameFlags.AddFlags()
+	flags.EnvFlags.AddFlags()
 	flag.Float64Var(&flags.Discount, "discount", 0.7, "reward discount factor")
 	flag.BoolVar(&flags.Unnormalized, "unnorm", false, "use unnormalized rewards")
 	flag.IntVar(&flags.NumParallel, "numparallel", runtime.GOMAXPROCS(0),
@@ -51,9 +51,9 @@ func main() {
 
 	log.Println("Creating environments...")
 	c := anyvec32.CurrentCreator()
-	envs, err := experiments.MakeGames(c, &flags.GameFlags, flags.NumParallel)
+	envs, err := experiments.MakeEnvs(c, &flags.EnvFlags, flags.NumParallel)
 	essentials.Must(err)
-	info, _ := experiments.LookupGameInfo(flags.GameFlags.Name)
+	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 
 	log.Println("Gathering rollouts...")
 	roller := &treeagent.Roller{
@@ -99,16 +99,18 @@ func main() {
 			}
 			tree, _ = judger.Train(samples, flags.Depth)
 		} else {
-			builder := &treeagent.Builder{
-				MaxDepth:    flags.Depth,
+			pg := &treeagent.PG{
+				Builder: treeagent.Builder{
+					MaxDepth:  flags.Depth,
+					Algorithm: algo,
+					MinLeaf:   flags.MinLeaf,
+				},
 				ActionSpace: info.ActionSpace,
-				Algorithm:   algo,
-				MinLeaf:     flags.MinLeaf,
 			}
 			if flags.MaskParam >= 0 {
-				builder.ParamWhitelist = []int{flags.MaskParam}
+				pg.Builder.ParamWhitelist = []int{flags.MaskParam}
 			}
-			tree = builder.Build(samples)
+			tree, _, _ = pg.Build(samples)
 		}
 		TreeAnalysis(tree, samples, &flags)
 		if !flags.ValueFunc {
