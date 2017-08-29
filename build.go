@@ -54,9 +54,9 @@ func (b *Builder) build(data []*gradientSample) *Tree {
 // which is the regularization term.
 func (b *Builder) buildWithTerms(objAndReg anyvec.Vector,
 	data []*gradientSample) (tree *Tree, obj, reg anyvec.Numeric) {
-	objParts := vecToFloats(objAndReg)
-	scaler := 1 / float64(len(data))
-	return b.build(data), scaler * objParts[0], scaler * objParts[1]
+	obj, reg = splitUpTerms(objAndReg, len(data))
+	tree = b.build(data)
+	return
 }
 
 func (b *Builder) buildRecursive(data, allData []*gradientSample, depth int) *Tree {

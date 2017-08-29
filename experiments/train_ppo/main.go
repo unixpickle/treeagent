@@ -34,6 +34,7 @@ type Flags struct {
 	MaxTrees    int
 	StepSize    float64
 	ValStep     float64
+	TuneStep    float64
 	Discount    float64
 	Lambda      float64
 	FeatureFrac float64
@@ -43,6 +44,7 @@ type Flags struct {
 	SignOnly    bool
 	Iters       int
 	ValIters    int
+	TuneIters   int
 	CoordDesc   bool
 
 	ActorFile  string
@@ -62,6 +64,7 @@ func main() {
 	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max trees in value function")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
+	flag.Float64Var(&flags.TuneStep, "tunestep", 1, "step size for tuning")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
 	flag.Float64Var(&flags.Lambda, "lambda", 0.95, "GAE coefficient")
 	flag.Float64Var(&flags.FeatureFrac, "featurefrac", 1, "fraction of features to use")
@@ -71,6 +74,7 @@ func main() {
 	flag.BoolVar(&flags.SignOnly, "sign", false, "only use sign from trees")
 	flag.IntVar(&flags.Iters, "iters", 4, "training iterations per batch")
 	flag.IntVar(&flags.ValIters, "valiters", 4, "value training iterations per batch")
+	flag.IntVar(&flags.TuneIters, "tuneiters", 0, "tuning iterations per batch")
 	flag.BoolVar(&flags.CoordDesc, "coorddesc", false, "tune one action parameter at a time")
 	flag.StringVar(&flags.ActorFile, "actor", "actor.json", "file for saved policy")
 	flag.StringVar(&flags.CriticFile, "critic", "critic.json", "file for saved value function")
@@ -144,6 +148,22 @@ func main() {
 			rawSamples := treeagent.RolloutSamples(rollouts, advantages)
 			sampleChan := treeagent.Uint8Samples(rawSamples)
 			samples := treeagent.AllSamples(sampleChan)
+			for i := 0; i < flags.TuneIters; i++ {
+				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
+				if flags.CoordDesc {
+					ppo.PG.Builder.ParamWhitelist = []int{rand.Intn(info.ParamSize)}
+				}
+				grad, obj, reg := ppo.WeightGradient(minibatch, policy)
+
+				// Don't take larger and larger steps as more and
+				// more trees are added.
+				tuneNorm := 1 / math.Sqrt(float64(len(policy.Trees)))
+
+				policy.AddWeights(grad, flags.TuneStep*tuneNorm)
+				numPruned := policy.PruneNegative()
+				log.Printf("tune %d: objective=%v reg=%v prune=%d", i,
+					obj, reg, numPruned)
+			}
 			for i := 0; i < flags.Iters; i++ {
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
 				if flags.CoordDesc {

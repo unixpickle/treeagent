@@ -1,6 +1,9 @@
 package treeagent
 
 import (
+	"runtime"
+	"sync"
+
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anyvec"
 )
@@ -35,6 +38,48 @@ import (
 // dividing by n.
 // Rather, the objective should represent a sum.
 type ObjectiveFunc func(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res
+
+// weightGradient computes the gradient of an objective
+// with respect to the weights in a forest.
+// It returns the value of the objective function and the
+// gradient with respect to the weights.
+//
+// The gradient is divided by the total number of samples,
+// ensuring that it is invariant to the sample count.
+func weightGradient(s []Sample, f *Forest, o ObjectiveFunc) (grad []float64,
+	obj anyvec.Vector) {
+	obj, gradSamples := computeObjective(s, f, o)
+	grad = make([]float64, len(f.Trees))
+
+	indices := make(chan int, len(grad))
+	for i := range grad {
+		indices <- i
+	}
+	close(indices)
+
+	var wg sync.WaitGroup
+	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for index := range indices {
+				tree := f.Trees[index]
+				grad[index] = treeWeightGradient(gradSamples, tree)
+			}
+		}()
+	}
+
+	wg.Wait()
+	return
+}
+
+func treeWeightGradient(g []*gradientSample, t *Tree) float64 {
+	var sum float64
+	for _, sample := range g {
+		sum += sample.Gradient.Dot(smallVec(t.FindFeatureSource(sample)))
+	}
+	return sum / float64(len(g))
+}
 
 // computeObjective computes the objective function and
 // its gradient with respect to the action parameters.
@@ -112,4 +157,13 @@ func sumGradients(samples []*gradientSample) smallVec {
 		sum.Add(sample.Gradient)
 	}
 	return sum
+}
+
+// splitUpTerms splits up the objective vector into its
+// two components: surrogate loss and regularization.
+// It divides both terms by n.
+func splitUpTerms(objAndReg anyvec.Vector, n int) (obj, reg anyvec.Numeric) {
+	objParts := vecToFloats(objAndReg)
+	scaler := 1 / float64(n)
+	return scaler * objParts[0], scaler * objParts[1]
 }

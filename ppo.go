@@ -30,6 +30,19 @@ func (p *PPO) Build(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric)
 	return p.PG.Builder.buildWithTerms(computeObjective(s, f, p.Objective))
 }
 
+// WeightGradient returns the gradient with respect to the
+// tree weights.
+//
+// The gradient and objective are means over all samples.
+// Thus, the scale of the result does not depend on the
+// number of samples.
+func (p *PPO) WeightGradient(s []Sample, f *Forest) (grad []float64, obj,
+	reg anyvec.Numeric) {
+	grad, rawObj := weightGradient(s, f, p.Objective)
+	obj, reg = splitUpTerms(rawObj, len(s))
+	return
+}
+
 // Objective computes the  PPO objective concatenated with
 // the regularization (or 0 if no regularization is used).
 func (p *PPO) Objective(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res {

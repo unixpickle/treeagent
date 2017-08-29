@@ -49,6 +49,34 @@ func (f *Forest) RemoveFirst() {
 	essentials.OrderedDelete(&f.Weights, 0)
 }
 
+// AddWeights adds a value to each tree weight.
+// Weight i is updated by adding w[i]*scale.
+func (f *Forest) AddWeights(w []float64, scale float64) {
+	if len(w) != len(f.Weights) {
+		panic("weight vectors must have the same length")
+	}
+	for i, x := range w {
+		f.Weights[i] += x * scale
+	}
+}
+
+// PruneNegative removes trees with negative or 0 weights.
+// It returns the number of removed trees.
+func (f *Forest) PruneNegative() int {
+	var newWeights []float64
+	var newTrees []*Tree
+	for i, w := range f.Weights {
+		if w > 0 {
+			newWeights = append(newWeights, w)
+			newTrees = append(newTrees, f.Trees[i])
+		}
+	}
+	res := len(f.Trees) - len(newTrees)
+	f.Weights = newWeights
+	f.Trees = newTrees
+	return res
+}
+
 // Apply runs the features through each Tree and produces
 // a parameter vector.
 func (f *Forest) Apply(features []float64) ActionParams {
