@@ -157,7 +157,7 @@ func main() {
 
 				// Don't take larger and larger steps as more and
 				// more trees are added.
-				tuneNorm := 1 / math.Sqrt(float64(len(policy.Trees)))
+				tuneNorm := 1 / float64(len(policy.Trees))
 
 				policy.AddWeights(grad, flags.TuneStep*tuneNorm)
 				numPruned := policy.PruneNegative()
