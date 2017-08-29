@@ -30,6 +30,7 @@ type Flags struct {
 
 	Depth       int
 	MinLeaf     int
+	MinLeafFrac float64
 	TreeDecay   float64
 	MaxTrees    int
 	StepSize    float64
@@ -60,6 +61,8 @@ func main() {
 		"parallel environments")
 	flag.IntVar(&flags.Depth, "depth", 8, "tree depth")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
+	flag.Float64Var(&flags.MinLeafFrac, "minleaffrac", 0,
+		"minimum fraction of parent samples per child")
 	flag.Float64Var(&flags.TreeDecay, "decay", 1, "tree decay rate for value function")
 	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max trees in value function")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
@@ -106,6 +109,7 @@ func main() {
 		MaxDepth:    flags.Depth,
 		FeatureFrac: flags.FeatureFrac,
 		MinLeaf:     flags.MinLeaf,
+		MinLeafFrac: flags.MinLeafFrac,
 	}
 
 	ppo := &treeagent.PPO{
@@ -115,6 +119,7 @@ func main() {
 				Algorithm:   flags.Algorithm.Algorithm,
 				FeatureFrac: flags.FeatureFrac,
 				MinLeaf:     flags.MinLeaf,
+				MinLeafFrac: flags.MinLeafFrac,
 			},
 			ActionSpace: info.ActionSpace,
 			Regularizer: &anypg.EntropyReg{

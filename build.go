@@ -31,6 +31,13 @@ type Builder struct {
 	// two branches gets fewer than MinLeaf samples.
 	MinLeaf int
 
+	// MinLeafFrac is the minimum fraction of a parent's
+	// samples that can go into either branch.
+	// A value of 0.5 restricts splits to be perfect
+	// half-and-half divisions.
+	// Values closer to 0 allow for more freedom.
+	MinLeafFrac float64
+
 	// ParamWhitelist specifies the parameter indices to
 	// target with the trees.
 	// Only parameters in the whitelist will be non-zero
@@ -125,10 +132,12 @@ func (b *Builder) optimalSplit(samples []*gradientSample, feature int) *splitInf
 	tracker.Reset(sorted)
 	lastValue := featureVals[0]
 
+	minLeaf := essentials.MaxInt(b.MinLeaf, int(b.MinLeafFrac*float64(len(samples))))
+
 	var bestSplit *splitInfo
 	for i, sample := range sorted {
 		if featureVals[i] > lastValue {
-			if i >= b.MinLeaf && len(samples)-i >= b.MinLeaf {
+			if i >= minLeaf && len(samples)-i >= minLeaf {
 				newSplit := &splitInfo{
 					Feature:      feature,
 					Threshold:    (featureVals[i] + lastValue) / 2,

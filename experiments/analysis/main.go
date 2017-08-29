@@ -26,10 +26,11 @@ type Flags struct {
 	NumParallel int
 	Batch       int
 
-	Depth     int
-	MinLeaf   int
-	MaskParam int
-	ValueFunc bool
+	Depth       int
+	MinLeaf     int
+	MinLeafFrac float64
+	MaskParam   int
+	ValueFunc   bool
 
 	DumpLeaves bool
 }
@@ -44,6 +45,8 @@ func main() {
 	flag.IntVar(&flags.Batch, "batch", 2048, "number of steps to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
+	flag.Float64Var(&flags.MinLeafFrac, "minleaffrac", 0,
+		"minimum fraction of samples per leaf")
 	flag.IntVar(&flags.MaskParam, "mask", -1, "specific parameter to fit")
 	flag.BoolVar(&flags.ValueFunc, "valfunc", false, "train a value function, not a policy")
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
@@ -94,16 +97,20 @@ func main() {
 		var tree *treeagent.Tree
 		if flags.ValueFunc {
 			judger := &treeagent.Judger{
-				ValueFunc: treeagent.NewForest(1),
-				Discount:  flags.Discount,
+				MaxDepth:    flags.Depth,
+				ValueFunc:   treeagent.NewForest(1),
+				Discount:    flags.Discount,
+				MinLeaf:     flags.MinLeaf,
+				MinLeafFrac: flags.MinLeafFrac,
 			}
-			tree, _ = judger.Train(samples, flags.Depth)
+			tree, _ = judger.Train(samples)
 		} else {
 			pg := &treeagent.PG{
 				Builder: treeagent.Builder{
-					MaxDepth:  flags.Depth,
-					Algorithm: algo,
-					MinLeaf:   flags.MinLeaf,
+					MaxDepth:    flags.Depth,
+					Algorithm:   algo,
+					MinLeaf:     flags.MinLeaf,
+					MinLeafFrac: flags.MinLeafFrac,
 				},
 				ActionSpace: info.ActionSpace,
 			}

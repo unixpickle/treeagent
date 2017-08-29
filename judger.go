@@ -31,6 +31,7 @@ type Judger struct {
 	MaxDepth    int
 	FeatureFrac float64
 	MinLeaf     int
+	MinLeafFrac float64
 }
 
 // JudgeActions produces advantage estimations.
@@ -79,6 +80,7 @@ func (j *Judger) Train(data []Sample) (*Tree, float64) {
 		MaxDepth:    j.MaxDepth,
 		FeatureFrac: j.FeatureFrac,
 		MinLeaf:     j.MinLeaf,
+		MinLeafFrac: j.MinLeafFrac,
 	}
 	mse := loss / float64(len(data))
 	return builder.build(gradSamples), mse
