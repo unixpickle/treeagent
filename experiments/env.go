@@ -38,6 +38,7 @@ type EnvInfo struct {
 	// The collection to which the environment belongs.
 	Muniverse bool
 	Atari     bool
+	CubeRL    bool
 }
 
 // LookupEnvInfo finds information about an environment.
@@ -59,6 +60,10 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 			res.ActionSpace = &anyrl.Bernoulli{OneHot: true}
 		}
 		return res, nil
+	}
+
+	if info := cubeRLInfo(); name == info.Name {
+		return cubeRLInfo(), nil
 	}
 
 	if numActions, ok := atariActionSizes[name]; ok {
@@ -94,6 +99,8 @@ func MakeEnvs(c anyvec.Creator, e *EnvFlags, n int) (envs []Env, err error) {
 		return newMuniverseEnvs(c, e, n)
 	} else if info.Atari {
 		return newAtariEnvs(c, e, n)
+	} else if info.CubeRL {
+		return newCubeRLEnvs(c, e, n)
 	} else {
 		return nil, errors.New("unknown game source")
 	}
