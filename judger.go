@@ -99,5 +99,8 @@ func (j *Judger) OptimalWeight(data []Sample, t *Tree) float64 {
 		denominator += out * out
 		numerator += out * (sample.Advantage() - approximation)
 	}
+	if denominator == 0 {
+		return 0
+	}
 	return numerator / denominator
 }
