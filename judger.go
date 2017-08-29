@@ -28,6 +28,7 @@ type Judger struct {
 	Lambda float64
 
 	// These options are the same as those in Builder.
+	MaxDepth    int
 	FeatureFrac float64
 	MinLeaf     int
 }
@@ -61,7 +62,7 @@ func (j *Judger) TrainingSamples(r *anyrl.RolloutSet) <-chan Sample {
 //
 // The advantages in the samples should come from
 // TrainingSamples.
-func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
+func (j *Judger) Train(data []Sample) (*Tree, float64) {
 	var gradSamples []*gradientSample
 	var loss float64
 	outs := j.ValueFunc.applySamples(data)
@@ -74,8 +75,8 @@ func (j *Judger) Train(data []Sample, maxDepth int) (*Tree, float64) {
 		loss += grad * grad
 	}
 	builder := Builder{
-		MaxDepth:    maxDepth,
 		Algorithm:   MSEAlgorithm,
+		MaxDepth:    j.MaxDepth,
 		FeatureFrac: j.FeatureFrac,
 		MinLeaf:     j.MinLeaf,
 	}

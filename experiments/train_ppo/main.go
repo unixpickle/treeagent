@@ -99,6 +99,7 @@ func main() {
 		ValueFunc:   valueFunc,
 		Discount:    flags.Discount,
 		Lambda:      flags.Lambda,
+		MaxDepth:    flags.Depth,
 		FeatureFrac: flags.FeatureFrac,
 		MinLeaf:     flags.MinLeaf,
 	}
@@ -163,7 +164,7 @@ func main() {
 			for i := 0; i < flags.ValIters; i++ {
 				decayForest(flags, valueFunc)
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
-				tree, loss := judger.Train(minibatch, flags.Depth)
+				tree, loss := judger.Train(minibatch)
 				step := judger.OptimalWeight(samples, tree) * flags.ValStep
 				valueFunc.Add(tree, step)
 				log.Printf("step %d: mse=%f step=%f", i, loss, step)
