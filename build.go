@@ -53,6 +53,20 @@ func (b *Builder) Build(data []Sample) *Tree {
 	return b.buildTree(gradData, gradData, b.MaxDepth)
 }
 
+// Objective implements the policy gradient objective
+// function with optional regularization.
+func (b *Builder) Objective(params, old, acts, advs anydiff.Res, n int) anydiff.Res {
+	probs := b.ActionSpace.LogProb(params, acts.Output(), n)
+	obj := anydiff.Sum(anydiff.Mul(probs, advs))
+
+	if b.Regularizer != nil {
+		reg := b.Regularizer.Regularize(params, n)
+		obj = anydiff.Add(obj, anydiff.Sum(reg))
+	}
+
+	return obj
+}
+
 func (b *Builder) buildTree(data, allData []*gradientSample, depth int) *Tree {
 	if len(data) == 0 {
 		panic("cannot build tree with no data")
@@ -108,22 +122,8 @@ func (b *Builder) buildTree(data, allData []*gradientSample, depth int) *Tree {
 }
 
 func (b *Builder) gradientSamples(samples []Sample) []*gradientSample {
-	_, res := computeObjective(samples, nil, b.objective)
+	_, res := computeObjective(samples, nil, b.Objective)
 	return b.maskGradients(res)
-}
-
-// objective implements the policy gradient objective
-// function with optional regularization.
-func (b *Builder) objective(params, old, acts, advs anydiff.Res, n int) anydiff.Res {
-	probs := b.ActionSpace.LogProb(params, acts.Output(), n)
-	obj := anydiff.Sum(anydiff.Mul(probs, advs))
-
-	if b.Regularizer != nil {
-		reg := b.Regularizer.Regularize(params, n)
-		obj = anydiff.Add(obj, anydiff.Sum(reg))
-	}
-
-	return obj
 }
 
 // optimalSplit finds the optimal split for the given

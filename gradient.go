@@ -5,21 +5,36 @@ import (
 	"github.com/unixpickle/anyvec"
 )
 
-// objectiveFunc is an optimization objective function.
+// ObjectiveFunc is an optimization objective function.
 // It takes in a batch of parameters, actions, and
 // advantages and produces an objective value to maximize.
+//
+// The params argument is the current value of the action
+// parameters, which are to be updated.
+//
+// The oldParams argument contains the action parameters
+// which were originally output and resulted in the
+// sampled actions.
+//
+// The acts argument contains the sampled action vectors.
+//
+// The advs argument stores, for each sample, an estimated
+// advantage value.
 //
 // The n argument specifies how many samples are
 // represented by the batch.
 //
-// The params argument is the current value of the action
-// parameters, which are to be learned.
-// The oldParams argument is the constant ActionParams for
-// each sample.
+// Generally, the return value should be a single number.
+// However, it may be multi-dimensional so as to separate
+// different terms of the objective (e.g. the regulizer
+// and the policy gradient).
+// In this case, the sum of the vector components is used
+// as the final objective value to maximize.
 //
-// The objective may be more than one-dimensional.
-// In this case, the sum is optimized.
-type objectiveFunc func(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res
+// The terms in the result should not be normalized by
+// dividing by n.
+// Rather, the objective should represent a sum.
+type ObjectiveFunc func(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res
 
 // computeObjective computes the objective function and
 // its gradient with respect to the action parameters.
@@ -30,7 +45,7 @@ type objectiveFunc func(params, oldParams, acts, advs anydiff.Res, n int) anydif
 // The f argument is only necessary in offline-policy
 // algorithms or where the samples are re-used for
 // multiple steps.
-func computeObjective(s []Sample, f *Forest, o objectiveFunc) (anyvec.Vector,
+func computeObjective(s []Sample, f *Forest, o ObjectiveFunc) (anyvec.Vector,
 	[]*gradientSample) {
 	oldParams := make([]anyvec.Vector, len(s))
 	actions := make([]anyvec.Vector, len(s))

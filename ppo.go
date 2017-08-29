@@ -27,7 +27,7 @@ type PPO struct {
 // It returns a tree approximation of the gradient, the
 // mean objective, and the mean regulizer (or 0).
 func (p *PPO) Step(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) {
-	objective, grad := computeObjective(s, f, p.objective)
+	objective, grad := computeObjective(s, f, p.Objective)
 	grad = p.Builder.maskGradients(grad)
 	objParts := vecToFloats(objective)
 	scaler := 1 / float64(len(s))
@@ -35,9 +35,9 @@ func (p *PPO) Step(s []Sample, f *Forest) (step *Tree, obj, reg anyvec.Numeric) 
 		scaler * objParts[0], scaler * objParts[1]
 }
 
-// objective computes the mean PPO objective concatenated
-// with the regularization term (or 0).
-func (p *PPO) objective(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res {
+// Objective computes the  PPO objective concatenated with
+// the regularization (or 0 if no regularization is used).
+func (p *PPO) Objective(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res {
 	c := params.Output().Creator()
 
 	oldProbs := p.Builder.ActionSpace.LogProb(oldParams, acts.Output(), n)
