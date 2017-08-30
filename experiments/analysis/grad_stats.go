@@ -34,7 +34,8 @@ func ExactGradient(samples []treeagent.Sample, space anyrl.LogProber) anyvec.Vec
 
 // GradAnalysis analyses the update induced by t in terms
 // of the exact gradient.
-func GradAnalysis(t *treeagent.Tree, samples []treeagent.Sample, grad anyvec.Vector) {
+func GradAnalysis(label string, t *treeagent.Tree, samples []treeagent.Sample,
+	grad anyvec.Vector) {
 	c := grad.Creator()
 	ops := c.NumOps()
 
@@ -42,12 +43,12 @@ func GradAnalysis(t *treeagent.Tree, samples []treeagent.Sample, grad anyvec.Vec
 
 	dot := outGrad.Dot(grad)
 	cosDist := ops.Div(dot, ops.Mul(anyvec.Norm(outGrad), anyvec.Norm(grad)))
-	fmt.Println("Gradient cosine distance:", cosDist)
+	fmt.Println(label, "gradient cosine distance:", cosDist)
 
 	diff := outGrad.Copy()
 	diff.Sub(grad)
-	fmt.Println("Gradient L1 distance:", anyvec.AbsSum(diff))
-	fmt.Println("Gradient L2 distance:", anyvec.Norm(diff))
+	fmt.Println(label, "gradient L1 distance:", anyvec.AbsSum(diff))
+	fmt.Println(label, "gradient L2 distance:", anyvec.Norm(diff))
 }
 
 func outputGradient(t *treeagent.Tree, samples []treeagent.Sample) anyvec.Vector {

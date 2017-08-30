@@ -10,6 +10,7 @@ import (
 
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl/anypg"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/lazyseq"
@@ -25,6 +26,7 @@ type Flags struct {
 
 	NumParallel int
 	Batch       int
+	ValBatch    int
 
 	Depth       int
 	MinLeaf     int
@@ -43,6 +45,7 @@ func main() {
 	flag.IntVar(&flags.NumParallel, "numparallel", runtime.GOMAXPROCS(0),
 		"environments to run in parallel")
 	flag.IntVar(&flags.Batch, "batch", 2048, "number of steps to gather")
+	flag.IntVar(&flags.ValBatch, "valbatch", 0, "number of validation steps to gather")
 	flag.IntVar(&flags.Depth, "depth", 4, "depth of trees")
 	flag.IntVar(&flags.MinLeaf, "minleaf", 1, "minimum samples per leaf")
 	flag.Float64Var(&flags.MinLeafFrac, "minleaffrac", 0,
@@ -52,36 +55,26 @@ func main() {
 	flag.BoolVar(&flags.DumpLeaves, "dump", false, "print all leaves")
 	flag.Parse()
 
-	log.Println("Creating environments...")
 	c := anyvec32.CurrentCreator()
-	envs, err := experiments.MakeEnvs(c, &flags.EnvFlags, flags.NumParallel)
-	essentials.Must(err)
-	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
-
-	log.Println("Gathering rollouts...")
-	roller := &treeagent.Roller{
-		Policy:      treeagent.NewForest(info.ParamSize),
-		Creator:     c,
-		ActionSpace: info.ActionSpace,
-		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
-			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
-		},
-	}
-	rollouts, _, err := experiments.GatherRollouts(roller, envs, flags.Batch)
-	experiments.CloseEnvs(envs)
+	info, err := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 	essentials.Must(err)
 
 	log.Println("Creating training samples...")
-	judger := &anypg.QJudger{
-		Discount:  flags.Discount,
-		Normalize: !flags.Unnormalized,
+	samples := GatherSamples(c, &flags, flags.Batch)
+
+	var valSamples []treeagent.Sample
+	if flags.ValBatch > 0 {
+		log.Println("Creating validation samples...")
+		valSamples = GatherSamples(c, &flags, flags.ValBatch)
 	}
-	advs := judger.JudgeActions(rollouts)
-	rawSamples := treeagent.RolloutSamples(rollouts, advs)
-	samples := treeagent.AllSamples(treeagent.Uint8Samples(rawSamples))
 
 	log.Println("Computing exact gradient...")
 	exactGrad := ExactGradient(samples, info.ActionSpace)
+
+	var valGrad anyvec.Vector
+	if valSamples != nil {
+		valGrad = ExactGradient(valSamples, info.ActionSpace)
+	}
 
 	log.Println("Building trees...")
 
@@ -121,10 +114,40 @@ func main() {
 		}
 		TreeAnalysis(tree, samples, &flags)
 		if !flags.ValueFunc {
-			GradAnalysis(tree, samples, exactGrad)
+			GradAnalysis("Training", tree, samples, exactGrad)
+			if valGrad != nil {
+				GradAnalysis("Validation", tree, valSamples, valGrad)
+			}
 		}
 	}
 	PrintSeparator()
+}
+
+func GatherSamples(c anyvec.Creator, flags *Flags, numSteps int) []treeagent.Sample {
+	envs, err := experiments.MakeEnvs(c, &flags.EnvFlags, flags.NumParallel)
+	essentials.Must(err)
+	defer experiments.CloseEnvs(envs)
+	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
+
+	roller := &treeagent.Roller{
+		Policy:      treeagent.NewForest(info.ParamSize),
+		Creator:     c,
+		ActionSpace: info.ActionSpace,
+		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
+			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
+		},
+	}
+	rollouts, _, err := experiments.GatherRollouts(roller, envs, flags.Batch)
+	essentials.Must(err)
+
+	judger := &anypg.QJudger{
+		Discount:  flags.Discount,
+		Normalize: !flags.Unnormalized,
+	}
+	advs := judger.JudgeActions(rollouts)
+
+	rawSamples := treeagent.RolloutSamples(rollouts, advs)
+	return treeagent.AllSamples(treeagent.Uint8Samples(rawSamples))
 }
 
 func TreeAnalysis(tree *treeagent.Tree, samples []treeagent.Sample, flags *Flags) {
