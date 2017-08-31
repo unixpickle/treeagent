@@ -14,7 +14,9 @@ import (
 
 	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl/anypg"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
+	"github.com/unixpickle/anyvec/anyvec64"
 	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
@@ -160,9 +162,8 @@ func main() {
 				}
 				grad, obj, reg := ppo.WeightGradient(minibatch, policy)
 
-				// Don't take larger and larger steps as more and
-				// more trees are added.
-				tuneNorm := 1 / float64(len(policy.Trees))
+				gradNorm := anyvec.Norm(anyvec64.MakeVectorData(grad)).(float64)
+				tuneNorm := 1 / math.Pow(gradNorm, 2)
 
 				policy.AddWeights(grad, flags.TuneStep*tuneNorm)
 				numPruned := policy.PruneNegative()
