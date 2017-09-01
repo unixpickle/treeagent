@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/flate"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -11,11 +10,8 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/unixpickle/anydiff/anyseq"
-	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec/anyvec32"
-	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
@@ -58,6 +54,7 @@ func main() {
 	log.Println("Creating environments...")
 	envs, err := experiments.MakeEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
 	must(err)
+	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 
 	var judger anypg.ActionJudger
 	if flags.Discount != 0 {
@@ -66,16 +63,7 @@ func main() {
 		judger = &anypg.TotalJudger{Normalize: true}
 	}
 
-	actionSpace := anyrl.Softmax{}
-
-	roller := &treeagent.Roller{
-		Policy:      loadOrCreatePolicy(flags),
-		Creator:     creator,
-		ActionSpace: actionSpace,
-		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
-			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
-		},
-	}
+	roller := experiments.EnvRoller(creator, info, loadOrCreatePolicy(flags))
 
 	pg := &treeagent.PG{
 		Builder: treeagent.Builder{
@@ -83,9 +71,9 @@ func main() {
 			Algorithm: flags.Algorithm.Algorithm,
 			MinLeaf:   flags.MinLeaf,
 		},
-		ActionSpace: actionSpace,
+		ActionSpace: info.ActionSpace,
 		Regularizer: &anypg.EntropyReg{
-			Entropyer: actionSpace,
+			Entropyer: info.ActionSpace,
 			Coeff:     flags.EntropyReg,
 		},
 	}
@@ -111,9 +99,9 @@ func main() {
 
 			log.Println("Training on batch...")
 			advantages := judger.JudgeActions(rollouts)
-			rawSamples := treeagent.RolloutSamples(rollouts, advantages)
-			samples := treeagent.Uint8Samples(rawSamples)
-			tree, _, _ := pg.Build(treeagent.AllSamples(samples))
+			sampleChan := treeagent.RolloutSamples(rollouts, advantages)
+			sampleChan = experiments.EnvSamples(info, sampleChan)
+			tree, _, _ := pg.Build(treeagent.AllSamples(sampleChan))
 			if flags.SignOnly {
 				tree = treeagent.SignTree(tree)
 			}

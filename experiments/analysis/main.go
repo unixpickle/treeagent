@@ -1,19 +1,16 @@
 package main
 
 import (
-	"compress/flate"
 	"flag"
 	"fmt"
 	"log"
 	"math"
 	"runtime"
 
-	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
-	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
 )
@@ -129,14 +126,7 @@ func GatherSamples(c anyvec.Creator, flags *Flags, numSteps int) []treeagent.Sam
 	defer experiments.CloseEnvs(envs)
 	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 
-	roller := &treeagent.Roller{
-		Policy:      treeagent.NewForest(info.ParamSize),
-		Creator:     c,
-		ActionSpace: info.ActionSpace,
-		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
-			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
-		},
-	}
+	roller := experiments.EnvRoller(c, info, treeagent.NewForest(info.ParamSize))
 	rollouts, _, err := experiments.GatherRollouts(roller, envs, flags.Batch)
 	essentials.Must(err)
 
@@ -146,8 +136,9 @@ func GatherSamples(c anyvec.Creator, flags *Flags, numSteps int) []treeagent.Sam
 	}
 	advs := judger.JudgeActions(rollouts)
 
-	rawSamples := treeagent.RolloutSamples(rollouts, advs)
-	return treeagent.AllSamples(treeagent.Uint8Samples(rawSamples))
+	sampleChan := treeagent.RolloutSamples(rollouts, advs)
+	sampleChan = experiments.EnvSamples(info, sampleChan)
+	return treeagent.AllSamples(sampleChan)
 }
 
 func TreeAnalysis(tree *treeagent.Tree, samples []treeagent.Sample, flags *Flags) {

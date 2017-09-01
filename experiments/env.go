@@ -1,13 +1,17 @@
 package experiments
 
 import (
+	"compress/flate"
 	"errors"
 	"io"
 
+	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
+	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/muniverse"
+	"github.com/unixpickle/treeagent"
 )
 
 // ActionSpace is used to parameterize actions for an
@@ -35,6 +39,10 @@ type EnvInfo struct {
 	// Number of features (e.g. number of pixels).
 	NumFeatures int
 
+	// If true, features can be compressed as uint8
+	// values to use less RAM.
+	Uint8Features bool
+
 	// The collection to which the environment belongs.
 	Muniverse bool
 	Atari     bool
@@ -48,13 +56,14 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 	if spec != nil {
 		w, h := muniverseDownsampledSize(spec.Width, spec.Height)
 		res := &EnvInfo{
-			Name:        name,
-			ActionSpace: anyrl.Softmax{},
-			ParamSize:   len(spec.KeyWhitelist) + 1,
-			Width:       w,
-			Height:      h,
-			NumFeatures: w * h,
-			Muniverse:   true,
+			Name:          name,
+			ActionSpace:   anyrl.Softmax{},
+			ParamSize:     len(spec.KeyWhitelist) + 1,
+			Width:         w,
+			Height:        h,
+			NumFeatures:   w * h,
+			Uint8Features: true,
+			Muniverse:     true,
 		}
 		if res.ParamSize == 1 {
 			// Support tapping games with no keyboard.
@@ -69,13 +78,14 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 
 	if numActions, ok := atariActionSizes[name]; ok {
 		return &EnvInfo{
-			Name:        name,
-			ActionSpace: anyrl.Softmax{},
-			ParamSize:   numActions,
-			Width:       atariWidth,
-			Height:      atariHeight,
-			NumFeatures: atariObsSize(name),
-			Atari:       true,
+			Name:          name,
+			ActionSpace:   anyrl.Softmax{},
+			ParamSize:     numActions,
+			Width:         atariWidth,
+			Height:        atariHeight,
+			NumFeatures:   atariObsSize(name),
+			Uint8Features: true,
+			Atari:         true,
 		}, nil
 	}
 
@@ -90,6 +100,31 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 	}
 
 	return nil, errors.New("lookup game environment: \"" + name + "\" not found")
+}
+
+// EnvRoller creates a roller with the appropriate fields
+// set for the environment.
+func EnvRoller(c anyvec.Creator, e *EnvInfo, p *treeagent.Forest) *treeagent.Roller {
+	roller := &treeagent.Roller{
+		Policy:      p,
+		Creator:     c,
+		ActionSpace: e.ActionSpace,
+	}
+	if e.Uint8Features {
+		roller.MakeInputTape = func() (lazyseq.Tape, chan<- *anyseq.Batch) {
+			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
+		}
+	}
+	return roller
+}
+
+// EnvSamples optimizes the samples for the particular
+// environment (e.g. with uint8 conversion).
+func EnvSamples(e *EnvInfo, s <-chan treeagent.Sample) <-chan treeagent.Sample {
+	if e.Uint8Features {
+		return treeagent.Uint8Samples(s)
+	}
+	return s
 }
 
 // Env is an environment with a Close() method for

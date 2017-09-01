@@ -1,7 +1,6 @@
 package main
 
 import (
-	"compress/flate"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -12,12 +11,10 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/unixpickle/anydiff/anyseq"
 	"github.com/unixpickle/anyrl/anypg"
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/anyvec/anyvec64"
-	"github.com/unixpickle/lazyseq"
 	"github.com/unixpickle/rip"
 	"github.com/unixpickle/treeagent"
 	"github.com/unixpickle/treeagent/experiments"
@@ -95,14 +92,7 @@ func main() {
 	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 
 	policy, valueFunc := loadOrCreateForests(flags)
-	roller := &treeagent.Roller{
-		Policy:      policy,
-		Creator:     creator,
-		ActionSpace: info.ActionSpace,
-		MakeInputTape: func() (lazyseq.Tape, chan<- *anyseq.Batch) {
-			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
-		},
-	}
+	roller := experiments.EnvRoller(creator, info, policy)
 
 	judger := &treeagent.Judger{
 		ValueFunc:   valueFunc,
@@ -152,8 +142,8 @@ func main() {
 
 			log.Println("Training policy...")
 			advantages := judger.JudgeActions(rollouts)
-			rawSamples := treeagent.RolloutSamples(rollouts, advantages)
-			sampleChan := treeagent.Uint8Samples(rawSamples)
+			sampleChan := treeagent.RolloutSamples(rollouts, advantages)
+			sampleChan = experiments.EnvSamples(info, sampleChan)
 			samples := treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.TuneIters; i++ {
 				minibatch := treeagent.Minibatch(samples, flags.Minibatch)
@@ -184,8 +174,8 @@ func main() {
 			}
 
 			log.Println("Training value function...")
-			rawSamples = judger.TrainingSamples(rollouts)
-			sampleChan = treeagent.Uint8Samples(rawSamples)
+			sampleChan = judger.TrainingSamples(rollouts)
+			sampleChan = experiments.EnvSamples(info, sampleChan)
 			samples = treeagent.AllSamples(sampleChan)
 			for i := 0; i < flags.ValIters; i++ {
 				decayForest(flags, valueFunc)
