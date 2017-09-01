@@ -50,7 +50,8 @@ type EnvFlags struct {
 
 	// RecordDir is an optional path to where recordings
 	// should be stored.
-	// Currently, this is only supported for muniverse.
+	// For muniverse, this uses the recording system.
+	// For Gym, this creates a monitor.
 	RecordDir string
 
 	// FrameTime is the time per step.

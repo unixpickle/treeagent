@@ -39,6 +39,7 @@ type EnvInfo struct {
 	Muniverse bool
 	Atari     bool
 	CubeRL    bool
+	MuJoCo    bool
 }
 
 // LookupEnvInfo finds information about an environment.
@@ -78,6 +79,16 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 		}, nil
 	}
 
+	if numActions, numObs, ok := mujocoEnvInfo(name); ok {
+		return &EnvInfo{
+			Name:        name,
+			ActionSpace: anyrl.Gaussian{},
+			ParamSize:   numActions * 2,
+			NumFeatures: numObs,
+			MuJoCo:      true,
+		}, nil
+	}
+
 	return nil, errors.New("lookup game environment: \"" + name + "\" not found")
 }
 
@@ -101,6 +112,8 @@ func MakeEnvs(c anyvec.Creator, e *EnvFlags, n int) (envs []Env, err error) {
 		return newAtariEnvs(c, e, n)
 	} else if info.CubeRL {
 		return newCubeRLEnvs(c, e, n)
+	} else if info.MuJoCo {
+		return newMuJoCoEnvs(c, e, n)
 	} else {
 		return nil, errors.New("unknown game source")
 	}

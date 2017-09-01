@@ -40,12 +40,7 @@ type atariEnv struct {
 func newAtariEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
-		client, err := gym.Make(e.GymHost, e.Name)
-		if err != nil {
-			CloseEnvs(res)
-			return nil, err
-		}
-		env, err := anyrl.GymEnv(c, client, e.GymRender)
+		client, env, err := createGymEnv(c, e)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err
