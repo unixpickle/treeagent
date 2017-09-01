@@ -39,6 +39,15 @@ import (
 // Rather, the objective should represent a sum.
 type ObjectiveFunc func(params, oldParams, acts, advs anydiff.Res, n int) anydiff.Res
 
+// Improved checks if a policy makes an improvement over
+// the policy that originally produced the samples.
+func Improved(s []Sample, f *Forest, o ObjectiveFunc) bool {
+	newParams, oldParams, acts, advs := objectiveArguments(s, f, o)
+	newObj := anyvec.Sum(o(newParams, oldParams, acts, advs, len(s)).Output())
+	oldObj := anyvec.Sum(o(oldParams, oldParams, acts, advs, len(s)).Output())
+	return acts.Output().Creator().NumOps().Greater(newObj, oldObj)
+}
+
 // weightGradient computes the gradient of an objective
 // with respect to the weights in a forest.
 // It returns the value of the objective function and the
@@ -92,6 +101,16 @@ func treeWeightGradient(g []*gradientSample, t *Tree) float64 {
 // multiple steps.
 func computeObjective(s []Sample, f *Forest, o ObjectiveFunc) (anyvec.Vector,
 	[]*gradientSample) {
+	newParams, oldParams, acts, advs := objectiveArguments(s, f, o)
+	objective := o(newParams, oldParams, acts, advs, len(s))
+	grad := splitSampleGrads(s, newParams, anydiff.Sum(objective))
+	return objective.Output(), grad
+}
+
+// objectiveArguments produces the arguments for an
+// objective function.
+func objectiveArguments(s []Sample, f *Forest, o ObjectiveFunc) (*anydiff.Var,
+	*anydiff.Const, *anydiff.Const, *anydiff.Const) {
 	oldParams := make([]anyvec.Vector, len(s))
 	actions := make([]anyvec.Vector, len(s))
 	advs := make([]float64, len(s))
@@ -115,10 +134,7 @@ func computeObjective(s []Sample, f *Forest, o ObjectiveFunc) (anyvec.Vector,
 	} else {
 		newParamRes = anydiff.NewVar(oldParamRes.Output())
 	}
-
-	objective := o(newParamRes, oldParamRes, actRes, advRes, len(s))
-	grad := splitSampleGrads(s, newParamRes, anydiff.Sum(objective))
-	return objective.Output(), grad
+	return newParamRes, oldParamRes, actRes, advRes
 }
 
 // gradientSample is a Sample paired with the gradient of

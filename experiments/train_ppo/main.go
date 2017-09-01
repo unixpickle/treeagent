@@ -27,25 +27,27 @@ type Flags struct {
 	BatchSize    int
 	ParallelEnvs int
 
-	Depth       int
-	MinLeaf     int
-	MinLeafFrac float64
-	TreeDecay   float64
-	MaxTrees    int
-	StepSize    float64
-	ValStep     float64
-	TuneStep    float64
-	Discount    float64
-	Lambda      float64
-	FeatureFrac float64
-	Minibatch   float64
-	EntropyReg  float64
-	Epsilon     float64
-	SignOnly    bool
-	Iters       int
-	ValIters    int
-	TuneIters   int
-	CoordDesc   bool
+	Depth        int
+	MinLeaf      int
+	MinLeafFrac  float64
+	TreeDecay    float64
+	MaxTrees     int
+	StepSize     float64
+	AdaptiveDown float64
+	AdaptiveUp   float64
+	ValStep      float64
+	TuneStep     float64
+	Discount     float64
+	Lambda       float64
+	FeatureFrac  float64
+	Minibatch    float64
+	EntropyReg   float64
+	Epsilon      float64
+	SignOnly     bool
+	Iters        int
+	ValIters     int
+	TuneIters    int
+	CoordDesc    bool
 
 	ActorFile  string
 	CriticFile string
@@ -65,6 +67,8 @@ func main() {
 	flag.Float64Var(&flags.TreeDecay, "decay", 1, "tree decay rate for value function")
 	flag.IntVar(&flags.MaxTrees, "maxtrees", -1, "max trees in value function")
 	flag.Float64Var(&flags.StepSize, "step", 0.8, "step size")
+	flag.Float64Var(&flags.AdaptiveDown, "adadown", 1, "step size scale if loss got worse")
+	flag.Float64Var(&flags.AdaptiveUp, "adaup", 1, "step size scale if loss improved")
 	flag.Float64Var(&flags.ValStep, "valstep", 1, "value function step shrinkage")
 	flag.Float64Var(&flags.TuneStep, "tunestep", 1, "step size for tuning")
 	flag.Float64Var(&flags.Discount, "discount", 0.8, "discount factor")
@@ -171,6 +175,20 @@ func main() {
 					tree = treeagent.SignTree(tree)
 				}
 				policy.Add(tree, flags.StepSize)
+			}
+
+			if flags.AdaptiveDown != 1 || flags.AdaptiveUp != 1 {
+				if treeagent.Improved(samples, policy, ppo.Objective) {
+					if flags.AdaptiveUp != 1 {
+						flags.StepSize *= flags.AdaptiveUp
+						log.Println("increased step to", flags.StepSize)
+					}
+				} else {
+					if flags.AdaptiveDown != 1 {
+						flags.StepSize *= flags.AdaptiveDown
+						log.Println("decreased step to", flags.StepSize)
+					}
+				}
 			}
 
 			log.Println("Training value function...")
