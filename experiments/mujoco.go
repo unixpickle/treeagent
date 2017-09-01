@@ -7,11 +7,21 @@ import (
 )
 
 var mujocoActionSizes = map[string]int{
-	"Reacher-v1": 2,
+	"Reacher-v1":                2,
+	"HalfCheetah-v1":            6,
+	"InvertedDoublePendulum-v1": 1,
+	"InvertedPendulum-v1":       1,
+	"Swimmer-v1":                2,
+	"Walker2d-v1":               6,
 }
 
 var mujocoObservationSizes = map[string]int{
-	"Reacher-v1": 11,
+	"Reacher-v1":                11,
+	"HalfCheetah-v1":            17,
+	"InvertedDoublePendulum-v1": 11,
+	"InvertedPendulum-v1":       4,
+	"Swimmer-v1":                8,
+	"Walker2d-v1":               17,
 }
 
 func mujocoEnvInfo(name string) (numActions, numObs int, ok bool) {
