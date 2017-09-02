@@ -96,7 +96,7 @@ func (m *mujocoEnv) scaledAction(action anyvec.Vector) anyvec.Vector {
 	res := action.Copy()
 	res.AddScalar(c.MakeNumeric(1))
 	res.Scale(c.MakeNumeric(0.5))
-	anyvec.Clip(res, c.MakeNumeric(0), c.MakeNumeric(1))
+	anyvec.ClipRange(res, c.MakeNumeric(0), c.MakeNumeric(1))
 
 	diff := m.Max.Copy()
 	diff.Sub(m.Min)
