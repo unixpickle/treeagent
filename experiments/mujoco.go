@@ -74,9 +74,7 @@ func (m *mujocoEnv) Reset() (obs anyvec.Vector, err error) {
 
 func (m *mujocoEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64,
 	done bool, err error) {
-	clamped := action.Copy()
-	clampVec(clamped, m.Min, m.Max)
-	obs, reward, done, err = m.Env.Step(clamped)
+	obs, reward, done, err = m.Env.Step(m.scaledAction(action))
 	if err != nil {
 		return
 	}
@@ -87,21 +85,26 @@ func (m *mujocoEnv) Close() error {
 	return m.Closer.Close()
 }
 
-func clampVec(vec, min, max anyvec.Vector) {
-	c := vec.Creator()
+func (m *mujocoEnv) scaledAction(action anyvec.Vector) anyvec.Vector {
+	// Make sure the actions are in a reasonable range.
+	//
+	// See, for example,
+	// https://github.com/openai/baselines/blob/902ffcb7674dd9f3c08a0037ae57ada852f13d74/baselines/acktr/acktr_cont.py#L36
 
-	clampMin(vec, min)
+	c := action.Creator()
 
-	neg1 := c.MakeNumeric(-1)
-	vec.Scale(neg1)
-	negMax := max.Copy()
-	negMax.Scale(neg1)
-	clampMin(vec, negMax)
-	vec.Scale(neg1)
-}
+	res := action.Copy()
+	res.AddScalar(c.MakeNumeric(1))
+	res.Scale(c.MakeNumeric(0.5))
+	anyvec.ClipPos(res)
+	lessMask := res.Copy()
+	anyvec.LessThan(lessMask, c.MakeNumeric(1))
+	res.Mul(lessMask)
 
-func clampMin(vec, min anyvec.Vector) {
-	vec.Sub(min)
-	anyvec.ClipPos(vec)
-	vec.Add(min)
+	diff := m.Max.Copy()
+	diff.Sub(m.Min)
+	res.Mul(diff)
+	res.Add(m.Min)
+
+	return res
 }
