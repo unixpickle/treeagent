@@ -2,7 +2,6 @@ package experiments
 
 import (
 	"github.com/unixpickle/anyrl"
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/cuberl"
 )
 
@@ -25,7 +24,7 @@ type cuberlEnv struct {
 	anyrl.Env
 }
 
-func newCubeRLEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
+func newCubeRLEnvs(e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
 		// TODO: flags for some of these parameters.

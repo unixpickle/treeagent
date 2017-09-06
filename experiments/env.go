@@ -134,20 +134,20 @@ type Env interface {
 }
 
 // MakeEnvs creates n instances of an environment.
-func MakeEnvs(c anyvec.Creator, e *EnvFlags, n int) (envs []Env, err error) {
+func MakeEnvs(e *EnvFlags, n int) (envs []Env, err error) {
 	defer essentials.AddCtxTo("make games ("+e.Name+")", &err)
 	info, err := LookupEnvInfo(e.Name)
 	if err != nil {
 		return nil, err
 	}
 	if info.Muniverse {
-		return newMuniverseEnvs(c, e, n)
+		return newMuniverseEnvs(e, n)
 	} else if info.Atari {
-		return newAtariEnvs(c, e, n)
+		return newAtariEnvs(e, n)
 	} else if info.CubeRL {
-		return newCubeRLEnvs(c, e, n)
+		return newCubeRLEnvs(e, n)
 	} else if info.MuJoCo {
-		return newMuJoCoEnvs(c, e, n)
+		return newMuJoCoEnvs(e, n)
 	} else {
 		return nil, errors.New("unknown game source")
 	}

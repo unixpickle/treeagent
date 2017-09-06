@@ -4,7 +4,6 @@ import (
 	"math"
 
 	"github.com/unixpickle/anyrl"
-	"github.com/unixpickle/anyvec"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 )
 
@@ -35,11 +34,11 @@ func mujocoEnvInfo(name string) (numActions, numObs int, ok bool) {
 type mujocoEnv struct {
 	anyrl.Env
 	Closer gym.Env
-	Min    anyvec.Vector
-	Max    anyvec.Vector
+	Min    []float64
+	Max    []float64
 }
 
-func newMuJoCoEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
+func newMuJoCoEnvs(e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
 		client, env, err := createGymEnv(e)
@@ -55,8 +54,8 @@ func newMuJoCoEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 		var realEnv Env = &mujocoEnv{
 			Env:    env,
 			Closer: client,
-			Min:    c.MakeVectorData(c.MakeNumericList(actSpace.Low)),
-			Max:    c.MakeVectorData(c.MakeNumericList(actSpace.High)),
+			Min:    actSpace.Low,
+			Max:    actSpace.High,
 		}
 		if e.History {
 			realEnv = &historyEnv{Env: realEnv}
@@ -68,11 +67,12 @@ func newMuJoCoEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 
 func (m *mujocoEnv) Step(action []float64) (obs []float64, reward float64,
 	done bool, err error) {
-	clamped := make([]float64, len(action))
+	scaled := make([]float64, len(action))
 	for i, x := range action {
-		clamped[i] = math.Max(math.Min(x, 1), -1)
+		clamped := (math.Max(math.Min(x, 1), -1) + 1) / 2
+		scaled[i] = m.Min[i] + (m.Max[i]-m.Min[i])*clamped
 	}
-	return m.Env.Step(clamped)
+	return m.Env.Step(scaled)
 }
 
 func (m *mujocoEnv) Close() error {

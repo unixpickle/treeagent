@@ -4,7 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/muniverse"
 	"github.com/unixpickle/muniverse/chrome"
@@ -17,7 +16,6 @@ const muniverseDownsample = 4
 // It handles action conversions and downsampling.
 type muniverseEnv struct {
 	Env         muniverse.Env
-	Creator     anyvec.Creator
 	TimePerStep time.Duration
 
 	timestep int
@@ -26,7 +24,7 @@ type muniverseEnv struct {
 }
 
 // newMuniverseEnvs creates n environment instances.
-func newMuniverseEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
+func newMuniverseEnvs(e *EnvFlags, n int) ([]Env, error) {
 	spec := muniverse.SpecForName(e.Name)
 	if spec == nil {
 		return nil, errors.New(`"` + e.Name + `" not found`)
@@ -46,7 +44,6 @@ func newMuniverseEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 
 		var realEnv Env = &muniverseEnv{
 			Env:         env,
-			Creator:     c,
 			TimePerStep: e.FrameTime,
 		}
 		if e.History {

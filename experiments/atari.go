@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/unixpickle/anyrl"
-	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/essentials"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 )
@@ -37,7 +36,7 @@ type atariEnv struct {
 	RAM    bool
 }
 
-func newAtariEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
+func newAtariEnvs(e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
 		client, env, err := createGymEnv(e)
