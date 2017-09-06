@@ -31,7 +31,6 @@ func newCubeRLEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 		// TODO: flags for some of these parameters.
 		res = append(res, &cuberlEnv{
 			Env: &cuberl.Env{
-				Creator:   c,
 				Objective: cuberl.FullCube,
 				EpLen:     20,
 				FullState: true,

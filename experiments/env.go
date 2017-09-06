@@ -107,7 +107,6 @@ func LookupEnvInfo(name string) (*EnvInfo, error) {
 func EnvRoller(c anyvec.Creator, e *EnvInfo, p *treeagent.Forest) *treeagent.Roller {
 	roller := &treeagent.Roller{
 		Policy:      p,
-		Creator:     c,
 		ActionSpace: e.ActionSpace,
 	}
 	if e.Uint8Features {
@@ -166,25 +165,25 @@ func CloseEnvs(envs []Env) {
 type historyEnv struct {
 	Env
 
-	lastObs anyvec.Vector
+	lastObs []float64
 }
 
-func (h *historyEnv) Reset() (anyvec.Vector, error) {
+func (h *historyEnv) Reset() ([]float64, error) {
 	obs, err := h.Env.Reset()
 	h.lastObs = obs
 	return h.nextObs(obs), err
 }
 
-func (h *historyEnv) Step(action anyvec.Vector) (anyvec.Vector, float64, bool, error) {
+func (h *historyEnv) Step(action []float64) ([]float64, float64, bool, error) {
 	obs, rew, done, err := h.Env.Step(action)
 	return h.nextObs(obs), rew, done, err
 }
 
-func (h *historyEnv) nextObs(obs anyvec.Vector) anyvec.Vector {
+func (h *historyEnv) nextObs(obs []float64) []float64 {
 	if obs == nil {
 		return nil
 	}
-	res := obs.Creator().Concat(obs, h.lastObs)
+	res := append(append([]float64{}, obs...), h.lastObs...)
 	h.lastObs = obs
 	return res
 }

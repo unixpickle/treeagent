@@ -1,6 +1,8 @@
 package experiments
 
 import (
+	"math"
+
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyvec"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
@@ -31,7 +33,7 @@ func mujocoEnvInfo(name string) (numActions, numObs int, ok bool) {
 }
 
 type mujocoEnv struct {
-	Env    anyrl.Env
+	anyrl.Env
 	Closer gym.Env
 	Min    anyvec.Vector
 	Max    anyvec.Vector
@@ -40,7 +42,7 @@ type mujocoEnv struct {
 func newMuJoCoEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
-		client, env, err := createGymEnv(c, e)
+		client, env, err := createGymEnv(e)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err
@@ -64,44 +66,15 @@ func newMuJoCoEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	return res, nil
 }
 
-func (m *mujocoEnv) Reset() (obs anyvec.Vector, err error) {
-	obs, err = m.Env.Reset()
-	if err != nil {
-		return
-	}
-	return
-}
-
-func (m *mujocoEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64,
+func (m *mujocoEnv) Step(action []float64) (obs []float64, reward float64,
 	done bool, err error) {
-	clamped := action.Copy()
-	clampVec(clamped, m.Min, m.Max)
-	obs, reward, done, err = m.Env.Step(clamped)
-	if err != nil {
-		return
+	clamped := make([]float64, len(action))
+	for i, x := range action {
+		clamped[i] = math.Max(math.Min(x, 1), -1)
 	}
-	return
+	return m.Env.Step(clamped)
 }
 
 func (m *mujocoEnv) Close() error {
 	return m.Closer.Close()
-}
-
-func clampVec(vec, min, max anyvec.Vector) {
-	c := vec.Creator()
-
-	clampMin(vec, min)
-
-	neg1 := c.MakeNumeric(-1)
-	vec.Scale(neg1)
-	negMax := max.Copy()
-	negMax.Scale(neg1)
-	clampMin(vec, negMax)
-	vec.Scale(neg1)
-}
-
-func clampMin(vec, min anyvec.Vector) {
-	vec.Sub(min)
-	anyvec.ClipPos(vec)
-	vec.Add(min)
 }

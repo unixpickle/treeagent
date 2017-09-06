@@ -40,7 +40,7 @@ type atariEnv struct {
 func newAtariEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	var res []Env
 	for i := 0; i < n; i++ {
-		client, env, err := createGymEnv(c, e)
+		client, env, err := createGymEnv(e)
 		if err != nil {
 			CloseEnvs(res)
 			return nil, err
@@ -58,7 +58,7 @@ func newAtariEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 	return res, nil
 }
 
-func (a *atariEnv) Reset() (obs anyvec.Vector, err error) {
+func (a *atariEnv) Reset() (obs []float64, err error) {
 	obs, err = a.Env.Reset()
 	if err != nil {
 		return
@@ -67,7 +67,7 @@ func (a *atariEnv) Reset() (obs anyvec.Vector, err error) {
 	return
 }
 
-func (a *atariEnv) Step(action anyvec.Vector) (obs anyvec.Vector, reward float64,
+func (a *atariEnv) Step(action []float64) (obs []float64, reward float64,
 	done bool, err error) {
 	obs, reward, done, err = a.Env.Step(action)
 	if err != nil {
@@ -81,7 +81,7 @@ func (a *atariEnv) Close() error {
 	return a.Closer.Close()
 }
 
-func (a *atariEnv) Preprocess(obs anyvec.Vector) anyvec.Vector {
+func (a *atariEnv) Preprocess(obs []float64) []float64 {
 	if a.RAM {
 		return obs
 	} else {
@@ -89,34 +89,18 @@ func (a *atariEnv) Preprocess(obs anyvec.Vector) anyvec.Vector {
 	}
 }
 
-func downsampleAtariObs(obs anyvec.Vector) anyvec.Vector {
-	comps := obsComponents(obs)
+func downsampleAtariObs(obs []float64) []float64 {
 	newComps := make([]float64, 0, atariWidth*atariHeight)
 	for y := 0; y < atariHeight; y++ {
 		for x := 0; x < atariWidth; x++ {
 			idx := 3 * atariScale * (y*atariWidth*atariScale + x)
 			var sum float64
 			for z := 0; z < 3; z++ {
-				sum += comps[idx+z]
+				sum += obs[idx+z]
 			}
 			val := essentials.Round(sum / 3)
 			newComps = append(newComps, val)
 		}
 	}
-	return obs.Creator().MakeVectorData(obs.Creator().MakeNumericList(newComps))
-}
-
-func obsComponents(obs anyvec.Vector) []float64 {
-	switch data := obs.Data().(type) {
-	case []float64:
-		return data
-	case []float32:
-		res := make([]float64, len(data))
-		for i, x := range data {
-			res[i] = float64(x)
-		}
-		return res
-	default:
-		panic("unsupported numeric type")
-	}
+	return newComps
 }

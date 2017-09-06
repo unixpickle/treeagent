@@ -59,7 +59,7 @@ func newMuniverseEnvs(c anyvec.Creator, e *EnvFlags, n int) ([]Env, error) {
 }
 
 // Reset sets up a fresh instance of the environment.
-func (m *muniverseEnv) Reset() (observation anyvec.Vector, err error) {
+func (m *muniverseEnv) Reset() (observation []float64, err error) {
 	err = m.Env.Reset()
 	if err != nil {
 		return
@@ -80,7 +80,7 @@ func (m *muniverseEnv) Reset() (observation anyvec.Vector, err error) {
 
 // Step takes an action, advances time, and captures a
 // screenshot of the environment.
-func (m *muniverseEnv) Step(action anyvec.Vector) (observation anyvec.Vector,
+func (m *muniverseEnv) Step(action []float64) (observation []float64,
 	reward float64, done bool, err error) {
 	events := m.eventsForAction(action)
 	reward, done, err = m.Env.Step(m.TimePerStep, events...)
@@ -109,8 +109,14 @@ func (m *muniverseEnv) Close() error {
 	return m.Env.Close()
 }
 
-func (m *muniverseEnv) eventsForAction(action anyvec.Vector) []interface{} {
-	actionIdx := anyvec.MaxIndex(action)
+func (m *muniverseEnv) eventsForAction(action []float64) []interface{} {
+	var actionIdx int
+	for i, x := range action {
+		if x != 0 {
+			actionIdx = i
+			break
+		}
+	}
 	spec := m.Env.Spec()
 	if len(spec.KeyWhitelist) == 0 {
 		return m.tapEvents(actionIdx)
@@ -155,7 +161,7 @@ func (m *muniverseEnv) keyEvents(actionIdx int) []interface{} {
 	return events
 }
 
-func (m *muniverseEnv) simplifyImage(in []uint8) anyvec.Vector {
+func (m *muniverseEnv) simplifyImage(in []uint8) []float64 {
 	spec := m.Env.Spec()
 	w, h := muniverseDownsampledSize(spec.Width, spec.Height)
 	data := make([]float64, 0, w*h)
@@ -169,7 +175,7 @@ func (m *muniverseEnv) simplifyImage(in []uint8) anyvec.Vector {
 			data = append(data, essentials.Round(value/3))
 		}
 	}
-	return m.Creator.MakeVectorData(m.Creator.MakeNumericList(data))
+	return data
 }
 
 func muniverseDownsampledSize(width, height int) (int, int) {
