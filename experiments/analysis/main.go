@@ -121,7 +121,7 @@ func main() {
 }
 
 func GatherSamples(c anyvec.Creator, flags *Flags, numSteps int) []treeagent.Sample {
-	envs, err := experiments.MakeEnvs(c, &flags.EnvFlags, flags.NumParallel)
+	envs, err := experiments.MakeEnvs(&flags.EnvFlags, flags.NumParallel)
 	essentials.Must(err)
 	defer experiments.CloseEnvs(envs)
 	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)

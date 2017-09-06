@@ -52,7 +52,7 @@ func main() {
 	creator := anyvec32.CurrentCreator()
 
 	log.Println("Creating environments...")
-	envs, err := experiments.MakeEnvs(creator, &flags.EnvFlags, flags.ParallelEnvs)
+	envs, err := experiments.MakeEnvs(&flags.EnvFlags, flags.ParallelEnvs)
 	must(err)
 	info, _ := experiments.LookupEnvInfo(flags.EnvFlags.Name)
 

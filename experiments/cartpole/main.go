@@ -7,7 +7,6 @@ import (
 
 	"github.com/unixpickle/anyrl"
 	"github.com/unixpickle/anyrl/anypg"
-	"github.com/unixpickle/anyvec/anyvec32"
 	gym "github.com/unixpickle/gym-socket-api/binding-go"
 	"github.com/unixpickle/treeagent"
 )
@@ -23,23 +22,19 @@ const (
 )
 
 func main() {
-	// Used to create vectors.
-	creator := anyvec32.CurrentCreator()
-
 	// Connect to gym server.
 	client, err := gym.Make(Host, "CartPole-v0")
 	must(err)
 	defer client.Close()
 
 	// Create an anyrl.Env from our gym environment.
-	env, err := anyrl.GymEnv(creator, client, false)
+	env, err := anyrl.GymEnv(client, false)
 	must(err)
 
 	// Setup a roller with a zero-initialized policy.
 	actionSpace := anyrl.Softmax{}
 	roller := &treeagent.Roller{
 		Policy:      treeagent.NewForest(2),
-		Creator:     creator,
 		ActionSpace: actionSpace,
 	}
 

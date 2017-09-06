@@ -30,7 +30,7 @@ func main() {
 		must(err)
 		defer client.Close()
 
-		env, err := anyrl.GymEnv(creator, client, false)
+		env, err := anyrl.GymEnv(client, false)
 		must(err)
 		go func() {
 			for {
@@ -49,7 +49,6 @@ func randomTrainingRound(creator anyvec.Creator, env anyrl.Env) {
 	// Setup a roller with a uniformly random policy.
 	roller := &treeagent.Roller{
 		Policy:      treeagent.NewForest(2),
-		Creator:     creator,
 		ActionSpace: anyrl.Softmax{},
 	}
 
