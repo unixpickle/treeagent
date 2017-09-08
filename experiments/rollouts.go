@@ -71,7 +71,7 @@ func GatherRollouts(roller *treeagent.Roller, envs []Env,
 		Entropyer: roller.ActionSpace.(anyrl.Entropyer),
 		Coeff:     1,
 	}
-	entropy := anypg.AverageReg(roller.Creator(), packed.AgentOuts, reg)
+	entropy := anypg.AverageReg(packed.AgentOuts, reg)
 
 	return packed, entropy, <-errChan
 }
