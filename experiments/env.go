@@ -110,8 +110,9 @@ func EnvRoller(c anyvec.Creator, e *EnvInfo, p *treeagent.Forest) *treeagent.Rol
 		ActionSpace: e.ActionSpace,
 	}
 	if e.Uint8Features {
-		roller.MakeInputTape = func() (lazyseq.Tape, chan<- *anyseq.Batch) {
-			return lazyseq.CompressedUint8Tape(flate.DefaultCompression)
+		roller.MakeInputTape = func(c anyvec.Creator) (lazyseq.Tape,
+			chan<- *anyseq.Batch) {
+			return lazyseq.CompressedUint8Tape(c, flate.DefaultCompression)
 		}
 	}
 	return roller

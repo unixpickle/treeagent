@@ -65,7 +65,7 @@ func GatherRollouts(roller *treeagent.Roller, envs []Env,
 			}
 		}
 	}
-	packed := anyrl.PackRolloutSets(res)
+	packed := anyrl.PackRolloutSets(roller.Creator(), res)
 
 	reg := &anypg.EntropyReg{
 		Entropyer: roller.ActionSpace.(anyrl.Entropyer),
